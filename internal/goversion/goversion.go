@@ -1,9 +1,11 @@
 package goversion
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -51,9 +53,9 @@ func (d *DefaultRunner) GetInfo(binaryName string) (*Info, error) {
 
 // ParseVersionJSON parses the JSON output from go version -m -json into Info.
 func ParseVersionJSON(data []byte) (*Info, error) {
-	var entries []versionOutput
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("failed to parse go version output: %w", err)
+	entries, err := parseVersionEntries(data)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(entries) == 0 {
@@ -70,6 +72,40 @@ func ParseVersionJSON(data []byte) (*Info, error) {
 		Version:   entry.Main.Version,
 		GoVersion: entry.GoVersion,
 	}, nil
+}
+
+func parseVersionEntries(data []byte) ([]versionOutput, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, errors.New("failed to parse go version output: empty output")
+	}
+
+	switch trimmed[0] {
+	case '[':
+		var entries []versionOutput
+		if err := json.Unmarshal(trimmed, &entries); err != nil {
+			return nil, fmt.Errorf("failed to parse go version output: %w", err)
+		}
+		return entries, nil
+	case '{':
+		dec := json.NewDecoder(bytes.NewReader(trimmed))
+		var entries []versionOutput
+		for {
+			var entry versionOutput
+			err := dec.Decode(&entry)
+			if err == nil {
+				entries = append(entries, entry)
+				continue
+			}
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("failed to parse go version output: %w", err)
+		}
+		return entries, nil
+	default:
+		return nil, fmt.Errorf("failed to parse go version output: unexpected JSON prefix %q", trimmed[0])
+	}
 }
 
 // IsGitHubRepo checks if the module path starts with "github.com/".

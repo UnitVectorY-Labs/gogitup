@@ -96,6 +96,31 @@ func TestParseVersionJSON(t *testing.T) {
 	}
 }
 
+func TestParseVersionJSONSingleObject(t *testing.T) {
+	jsonData := []byte(`{
+		"GoVersion": "go1.25.7",
+		"Path": "github.com/UnitVectorY-Labs/bulkfilepr",
+		"Main": {
+			"Path": "github.com/UnitVectorY-Labs/bulkfilepr",
+			"Version": "v0.2.2"
+		}
+	}`)
+
+	info, err := ParseVersionJSON(jsonData)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.Path != "github.com/UnitVectorY-Labs/bulkfilepr" {
+		t.Fatalf("expected path github.com/UnitVectorY-Labs/bulkfilepr, got %s", info.Path)
+	}
+	if info.Version != "v0.2.2" {
+		t.Fatalf("expected version v0.2.2, got %s", info.Version)
+	}
+	if info.GoVersion != "go1.25.7" {
+		t.Fatalf("expected GoVersion go1.25.7, got %s", info.GoVersion)
+	}
+}
+
 func TestParseVersionJSONEmptyArray(t *testing.T) {
 	_, err := ParseVersionJSON([]byte(`[]`))
 	if err == nil {
