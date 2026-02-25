@@ -24,8 +24,8 @@ The configuration file is located at `~/.gogitup` and uses YAML format. It is cr
 
 ```yaml
 apps:
-  - name: golangci-lint
-  - name: goimports
+  - name: ghorgsync
+  - name: bulkfilepr
 github_auth: false
 ```
 
@@ -39,9 +39,9 @@ github_auth: false
 
 ## GitHub Authentication
 
-When `github_auth` is set to `true`, gogitup sends authenticated requests to the GitHub API. This is useful for avoiding rate limits.
+When `github_auth` is set to `true`, **gogitup** sends authenticated requests to the GitHub API. This is useful for avoiding rate limits. By default, **gogitup** does not authenticate and is subject to GitHub's unauthenticated rate limits.
 
-The token is resolved in the following order:
+When enabled, the token is resolved in the following order:
 
 1. The `GITHUB_TOKEN` environment variable, if set.
 2. The output of `gh auth token` (GitHub CLI), as a fallback.
@@ -52,13 +52,14 @@ If neither source provides a token, requests are made without authentication.
 
 The cache file is located at `~/.gogitup.cache` and uses YAML format. It stores the latest version information retrieved from GitHub so that repeated checks do not require additional API calls.
 
-Cache entries expire after **24 hours**. After expiry the next `check` or `update` will re-fetch the latest release from GitHub.
+{: .important }
+Cache entries expire after **24 hours**. After expiry the next `check` or `update` will re-fetch the latest release from GitHub. A check can be forced with `--force` to bypass the cache, but the purpose of the cache is to avoid unnecessary API calls to GitHub.
 
 ### Example
 
 ```yaml
 entries:
-  golangci-lint:
-    latest_version: v1.62.2
+  ghorgsync:
+    latest_version: v0.10.0
     checked_at: 2025-01-15T10:30:00Z
 ```

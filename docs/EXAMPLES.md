@@ -21,7 +21,7 @@ permalink: /examples
 Register a Go-installed binary so gogitup can track it:
 
 ```bash
-gogitup add golangci-lint
+gogitup add ghorgsync
 ```
 
 ## Listing Tracked Tools
@@ -33,8 +33,12 @@ gogitup list
 ```
 
 ```
-golangci-lint  v1.61.0
-goimports      v0.28.0
+Registered Binaries
+
+  Name        Module Path                             Installed Version
+  ──────────  ──────────────────────────────────────  ─────────────────
+  bulkfilepr  github.com/UnitVectorY-Labs/bulkfilepr  v0.2.2           
+  ghorgsync   github.com/UnitVectorY-Labs/ghorgsync   v0.1.0           
 ```
 
 ## Checking for Updates
@@ -46,9 +50,16 @@ gogitup check
 ```
 
 ```
-golangci-lint  v1.61.0 -> v1.62.2  (update available)
-goimports      v0.28.0              (up to date)
+Update Check
+
+  Name        Installed  Latest  Update
+  ──────────  ─────────  ──────  ──────
+  bulkfilepr  v0.2.2     v0.2.3  yes   
+  ghorgsync   v0.1.0     v0.1.0  no    
 ```
+
+{: .important }
+The `check` command only checks for updates once every 24 hours caching the latest release information. Use `gogitup check --force` to bypass the cache and re-fetch from GitHub.
 
 ## Updating All Tools
 
@@ -56,6 +67,15 @@ Run a single command to update every tracked binary that has a newer release:
 
 ```bash
 gogitup update
+```
+
+```
+gogitup update
+⟳ Updating 'bulkfilepr' from v0.2.2 to v0.2.3...
+✓ Updated 'bulkfilepr' to v0.2.3
+ℹ 'ghorgsync' is already up to date (v0.1.0)
+
+✓ Updated 1 binary(ies).
 ```
 
 ## Using JSON Output for Scripting
@@ -69,10 +89,16 @@ gogitup check --json
 ```json
 [
   {
-    "name": "golangci-lint",
-    "installed_version": "v1.61.0",
-    "latest_version": "v1.62.2",
+    "name": "bulkfilepr",
+    "installed_version": "v0.2.2",
+    "latest_version": "v0.2.3",
     "update_available": true
+  },
+  {
+    "name": "ghorgsync",
+    "installed_version": "v0.1.0",
+    "latest_version": "v0.1.0",
+    "update_available": false
   }
 ]
 ```
@@ -82,7 +108,7 @@ gogitup check --json
 Stop tracking a binary without uninstalling it:
 
 ```bash
-gogitup remove goimports
+gogitup remove ghorgsync
 ```
 
 ## Enabling GitHub Authentication
@@ -91,22 +117,9 @@ Edit `~/.gogitup` and set `github_auth` to `true` to use authenticated API reque
 
 ```yaml
 apps:
-  - name: golangci-lint
-  - name: goimports
+  - name: ghorgsync
+  - name: bulkfilepr
 github_auth: true
 ```
 
 Then ensure a token is available via the `GITHUB_TOKEN` environment variable or the GitHub CLI (`gh auth token`).
-
-## Configuration with Multiple Tools
-
-A typical `~/.gogitup` file tracking several tools:
-
-```yaml
-apps:
-  - name: golangci-lint
-  - name: goimports
-  - name: dlv
-  - name: gopls
-github_auth: false
-```

@@ -23,6 +23,7 @@ type checkEntry struct {
 func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	jsonFlag := fs.Bool("json", false, "Output as JSON")
+	forceFlag := fs.Bool("force", false, "Refresh latest version from GitHub, ignoring cache")
 	_ = fs.Parse(args)
 
 	cfgPath := config.DefaultPath()
@@ -67,9 +68,9 @@ func runCheck(args []string) {
 			continue
 		}
 
-		// Check cache first
+		// Check cache first unless --force is set.
 		cached, found := cache.Get(c, app.Name)
-		if found && !cache.IsExpired(cached, cache.DefaultTTL) {
+		if !*forceFlag && found && !cache.IsExpired(cached, cache.DefaultTTL) {
 			entry.LatestVersion = cached.LatestVersion
 		} else {
 			latest, err := ghClient.GetLatestRelease(owner, repo)
