@@ -1,12 +1,14 @@
 package main
 
-import "runtime/debug"
+import (
+	"runtime/debug"
 
-var Version = "dev" // This will be set by the build systems to the release version
+	"github.com/UnitVectorY-Labs/gogitup/internal/cmd"
+)
 
-// main is the entry point for the gogitup command-line tool.
+var Version = "dev"
+
 func main() {
-	// Set the build version from the build info if not set by the build system
 	if Version == "dev" || Version == "" {
 		if bi, ok := debug.ReadBuildInfo(); ok {
 			if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
@@ -15,5 +17,5 @@ func main() {
 		}
 	}
 
-	// TODO: Implement everything
+	cmd.Execute(Version)
 }
