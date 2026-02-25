@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -18,9 +19,17 @@ func NewDefaultInstaller() *DefaultInstaller {
 	return &DefaultInstaller{}
 }
 
+// buildInstallCmd creates the exec.Cmd for "go install {modulePath}@{version}" with the
+// current process environment so that variables such as GOPROXY are forwarded.
+func (d *DefaultInstaller) buildInstallCmd(modulePath, version string) *exec.Cmd {
+	cmd := exec.Command("go", "install", modulePath+"@"+version)
+	cmd.Env = os.Environ()
+	return cmd
+}
+
 // Install runs "go install {modulePath}@{version}" and returns the combined output.
 func (d *DefaultInstaller) Install(modulePath string, version string) (string, error) {
-	cmd := exec.Command("go", "install", modulePath+"@"+version)
+	cmd := d.buildInstallCmd(modulePath, version)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("go install %s@%s failed: %w\n%s", modulePath, version, err, string(out))

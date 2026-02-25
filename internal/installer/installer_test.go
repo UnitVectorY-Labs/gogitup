@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -54,5 +55,47 @@ func TestMockInstallerFailure(t *testing.T) {
 	}
 	if out != "module not found" {
 		t.Fatalf("expected 'module not found', got %q", out)
+	}
+}
+
+// TestBuildInstallCmdEnvIncludesGOPROXY verifies that buildInstallCmd forwards GOPROXY
+// from the process environment to the go install command.
+func TestBuildInstallCmdEnvIncludesGOPROXY(t *testing.T) {
+	const proxyURL = "https://proxy.example.com"
+	t.Setenv("GOPROXY", proxyURL)
+
+	inst := NewDefaultInstaller()
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	found := false
+	for _, e := range cmd.Env {
+		if strings.HasPrefix(e, "GOPROXY=") {
+			if e == "GOPROXY="+proxyURL {
+				found = true
+			} else {
+				t.Fatalf("unexpected GOPROXY value: %s", e)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("GOPROXY=%s not found in command environment", proxyURL)
+	}
+}
+
+// TestBuildInstallCmdArgs verifies the go install command arguments are constructed correctly.
+func TestBuildInstallCmdArgs(t *testing.T) {
+	inst := NewDefaultInstaller()
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.2.3")
+
+	args := cmd.Args
+	if len(args) != 3 {
+		t.Fatalf("expected 3 args, got %d: %v", len(args), args)
+	}
+	if args[1] != "install" {
+		t.Fatalf("expected args[1]='install', got %q", args[1])
+	}
+	if args[2] != "github.com/example/tool@v1.2.3" {
+		t.Fatalf("expected args[2]='github.com/example/tool@v1.2.3', got %q", args[2])
 	}
 }
