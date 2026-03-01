@@ -112,7 +112,7 @@ gogitup update
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| _(none)_ | No | N/A | This command currently has no command-specific arguments |
+| `--verbose` | No | `false` | Show binaries that are already up to date while checking for updates |
 
 **What `update` does:**
 

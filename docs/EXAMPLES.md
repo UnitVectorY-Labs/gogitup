@@ -70,7 +70,7 @@ gogitup update
 ```
 
 ```
-gogitup update
+gogitup update --verbose
 ⟳ Updating 'bulkfilepr' from v0.2.2 to v0.2.3...
 ✓ Updated 'bulkfilepr' to v0.2.3
 ℹ 'ghorgsync' is already up to date (v0.1.0)
