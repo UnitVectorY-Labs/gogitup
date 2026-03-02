@@ -58,8 +58,55 @@ func TestMockInstallerFailure(t *testing.T) {
 	}
 }
 
-// TestBuildInstallCmdEnvIncludesGOPROXY verifies that buildInstallCmd forwards GOPROXY
-// from the process environment to the go install command.
+// TestNewDefaultInstallerWithGOPROXY verifies that a configured GOPROXY value overrides the environment variable.
+func TestNewDefaultInstallerWithGOPROXY(t *testing.T) {
+	const configProxy = "https://config-proxy.example.com"
+	t.Setenv("GOPROXY", "https://env-proxy.example.com")
+
+	inst := NewDefaultInstallerWithGOPROXY(configProxy)
+	if inst == nil {
+		t.Fatalf("expected non-nil DefaultInstaller")
+	}
+
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	found := false
+	for _, e := range cmd.Env {
+		if strings.HasPrefix(e, "GOPROXY=") {
+			if e == "GOPROXY="+configProxy {
+				found = true
+			} else {
+				t.Fatalf("unexpected GOPROXY value: %s (wanted %s)", e, "GOPROXY="+configProxy)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("GOPROXY=%s not found in command environment", configProxy)
+	}
+}
+
+// TestNewDefaultInstallerWithEmptyGOPROXY verifies that an empty GOPROXY value preserves the inherited environment variable.
+func TestNewDefaultInstallerWithEmptyGOPROXY(t *testing.T) {
+	const envProxy = "https://env-proxy.example.com"
+	t.Setenv("GOPROXY", envProxy)
+
+	inst := NewDefaultInstallerWithGOPROXY("")
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	found := false
+	for _, e := range cmd.Env {
+		if strings.HasPrefix(e, "GOPROXY=") {
+			if e == "GOPROXY="+envProxy {
+				found = true
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected GOPROXY=%s to be inherited from environment", envProxy)
+	}
+}
 func TestBuildInstallCmdEnvIncludesGOPROXY(t *testing.T) {
 	const proxyURL = "https://proxy.example.com"
 	t.Setenv("GOPROXY", proxyURL)

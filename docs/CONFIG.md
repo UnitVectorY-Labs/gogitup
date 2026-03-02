@@ -27,6 +27,7 @@ apps:
   - name: ghorgsync
   - name: bulkfilepr
 github_auth: false
+goproxy: "https://proxy.example.com,direct"
 ```
 
 ### Attributes
@@ -36,6 +37,7 @@ github_auth: false
 | `apps` | list | `[]` | List of registered application binary names |
 | `apps[].name` | string | - | Binary name of the registered application |
 | `github_auth` | boolean | `false` | Enable authenticated GitHub API requests |
+| `goproxy` | string | `""` | Override the `GOPROXY` environment variable used when running `go install` |
 
 ## GitHub Authentication
 
@@ -47,6 +49,12 @@ When enabled, the token is resolved in the following order:
 2. The output of `gh auth token` (GitHub CLI), as a fallback.
 
 If neither source provides a token, requests are made without authentication.
+
+## GOPROXY
+
+When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when running `go install` (during both `install` and `update`). This is useful in environments that require a custom module proxy.
+
+If `goproxy` is not set or is empty, the `GOPROXY` value is inherited from the current process environment (the default Go behavior).
 
 ## Cache File
 

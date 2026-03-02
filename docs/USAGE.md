@@ -43,6 +43,32 @@ gogitup add <name>
 
 ---
 
+## `install`
+
+Installs a binary from GitHub using `go install` and registers it with **gogitup** in a single step.
+
+```bash
+gogitup install <owner/repo>
+```
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `<owner/repo>` | Yes | None | GitHub repository in `owner/repo` format (for example `UnitVectorY-Labs/gogitup`) |
+
+**What `install` does:**
+
+1. Fetches the latest release tag for the repository from the GitHub Releases API.
+2. Runs `go install github.com/<owner>/<repo>@<latest>`.
+3. Verifies that the resulting binary (named after the repository) is available on `PATH`.
+4. Registers the binary with **gogitup** for future `check` and `update` tracking.
+
+If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually.
+
+{: .note }
+If `goproxy` is configured in `~/.gogitup`, it is used as the `GOPROXY` environment variable when running `go install`.
+
+---
+
 ## `remove`
 
 Removes a binary from tracking. The binary itself is not uninstalled, **gogitup** just stops tracking it for updates when you run `check` or `update`.
