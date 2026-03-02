@@ -69,7 +69,7 @@ func runUpdate(args []string) {
 
 	runner := &goversion.DefaultRunner{}
 	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
-	inst := installer.NewDefaultInstaller()
+	inst := installer.NewDefaultInstallerWithGOPROXY(cfg.GOPROXY)
 	deps := updateDependencies{
 		runner:    runner,
 		ghClient:  ghClient,

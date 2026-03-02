@@ -22,6 +22,8 @@ func Execute(version string) {
 		fmt.Println("gogitup " + version)
 	case "add":
 		runAdd(os.Args[2:])
+	case "install":
+		runInstall(os.Args[2:])
 	case "remove":
 		runRemove(os.Args[2:])
 	case "list":
@@ -47,6 +49,7 @@ func printHelp() {
 	fmt.Println()
 	fmt.Printf("  %sCommands:%s\n", output.Bold, output.Reset)
 	fmt.Printf("    %sadd%s <name>       Register a Go-installed binary\n", output.Cyan, output.Reset)
+	fmt.Printf("    %sinstall%s <o/r>    Install a binary from GitHub and register it\n", output.Cyan, output.Reset)
 	fmt.Printf("    %sremove%s <name>    Remove a registered binary\n", output.Cyan, output.Reset)
 	fmt.Printf("    %slist%s             List registered binaries and installed versions\n", output.Cyan, output.Reset)
 	fmt.Printf("    %scheck%s            Check for available updates\n", output.Cyan, output.Reset)

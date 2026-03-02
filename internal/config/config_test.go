@@ -17,6 +17,9 @@ func TestLoadNonExistentFile(t *testing.T) {
 	if cfg.GitHubAuth {
 		t.Fatal("expected GitHubAuth to be false")
 	}
+	if cfg.GOPROXY != "" {
+		t.Fatalf("expected empty GOPROXY, got %q", cfg.GOPROXY)
+	}
 }
 
 func TestLoadValidYAML(t *testing.T) {
@@ -44,6 +47,27 @@ func TestLoadValidYAML(t *testing.T) {
 	if !cfg.GitHubAuth {
 		t.Fatal("expected GitHubAuth to be true")
 	}
+	if cfg.GOPROXY != "" {
+		t.Fatalf("expected empty GOPROXY, got %q", cfg.GOPROXY)
+	}
+}
+
+func TestLoadValidYAMLWithGOPROXY(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gogitup")
+
+	content := []byte("apps:\n  - name: \"app1\"\ngithub_auth: false\ngoproxy: \"https://proxy.example.com,direct\"\n")
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.GOPROXY != "https://proxy.example.com,direct" {
+		t.Fatalf("expected GOPROXY 'https://proxy.example.com,direct', got %q", cfg.GOPROXY)
+	}
 }
 
 func TestSaveAndLoadRoundtrip(t *testing.T) {
@@ -53,6 +77,7 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 	original := &Config{
 		Apps:       []App{{Name: "myapp"}, {Name: "otherapp"}},
 		GitHubAuth: true,
+		GOPROXY:    "https://proxy.example.com,direct",
 	}
 
 	if err := Save(path, original); err != nil {
@@ -74,6 +99,9 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 	}
 	if loaded.GitHubAuth != original.GitHubAuth {
 		t.Fatalf("expected GitHubAuth %v, got %v", original.GitHubAuth, loaded.GitHubAuth)
+	}
+	if loaded.GOPROXY != original.GOPROXY {
+		t.Fatalf("expected GOPROXY %q, got %q", original.GOPROXY, loaded.GOPROXY)
 	}
 }
 
