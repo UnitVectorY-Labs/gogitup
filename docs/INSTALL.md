@@ -45,3 +45,21 @@ git clone https://github.com/UnitVectorY-Labs/gogitup.git
 cd gogitup
 go build -o gogitup
 ```
+
+## Updating with gogitup
+
+### Registering with gogitup
+
+Tell **gogitup** that it should manage the updates for **gogitup**:
+
+```bash
+gogitup add gogitup
+```
+
+### Updating with gogitup
+
+Update the registered packages using **gogitup**:
+
+```bash
+gogitup update
+```
