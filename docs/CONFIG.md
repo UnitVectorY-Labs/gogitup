@@ -27,7 +27,7 @@ apps:
   - name: ghorgsync
   - name: bulkfilepr
 github_auth: false
-goproxy: "https://proxy.example.com,direct"
+goproxy: "https://proxy.golang.org"
 ```
 
 ### Attributes
@@ -54,6 +54,7 @@ If neither source provides a token, requests are made without authentication.
 
 When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when running `go install` (during both `install` and `update`). This is useful in environments that require a custom module proxy.
 
+{: .note }
 If `goproxy` is not set or is empty, the `GOPROXY` value is inherited from the current process environment (the default Go behavior).
 
 ## Cache File

@@ -64,9 +64,6 @@ gogitup install <owner/repo>
 
 If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually.
 
-{: .note }
-If `goproxy` is configured in `~/.gogitup`, it is used as the `GOPROXY` environment variable when running `go install`.
-
 ---
 
 ## `remove`
