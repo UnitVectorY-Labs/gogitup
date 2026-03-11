@@ -20,6 +20,9 @@ func TestLoadNonExistentFile(t *testing.T) {
 	if cfg.GOPROXY != "" {
 		t.Fatalf("expected empty GOPROXY, got %q", cfg.GOPROXY)
 	}
+	if cfg.CGOEnabled != nil {
+		t.Fatalf("expected nil CGOEnabled, got %v", *cfg.CGOEnabled)
+	}
 }
 
 func TestLoadValidYAML(t *testing.T) {
@@ -70,14 +73,76 @@ func TestLoadValidYAMLWithGOPROXY(t *testing.T) {
 	}
 }
 
+func TestLoadValidYAMLWithCGOEnabledFalse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gogitup")
+
+	content := []byte("apps:\n  - name: \"app1\"\ngithub_auth: false\ncgo_enabled: false\n")
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.CGOEnabled == nil {
+		t.Fatal("expected non-nil CGOEnabled")
+	}
+	if *cfg.CGOEnabled {
+		t.Fatal("expected CGOEnabled to be false")
+	}
+}
+
+func TestLoadValidYAMLWithCGOEnabledTrue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gogitup")
+
+	content := []byte("apps:\n  - name: \"app1\"\ngithub_auth: false\ncgo_enabled: true\n")
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.CGOEnabled == nil {
+		t.Fatal("expected non-nil CGOEnabled")
+	}
+	if !*cfg.CGOEnabled {
+		t.Fatal("expected CGOEnabled to be true")
+	}
+}
+
+func TestLoadValidYAMLWithoutCGOEnabled(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gogitup")
+
+	content := []byte("apps:\n  - name: \"app1\"\ngithub_auth: false\n")
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.CGOEnabled != nil {
+		t.Fatalf("expected nil CGOEnabled, got %v", *cfg.CGOEnabled)
+	}
+}
+
 func TestSaveAndLoadRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gogitup")
 
+	cgoDisabled := false
 	original := &Config{
 		Apps:       []App{{Name: "myapp"}, {Name: "otherapp"}},
 		GitHubAuth: true,
 		GOPROXY:    "https://proxy.example.com,direct",
+		CGOEnabled: &cgoDisabled,
 	}
 
 	if err := Save(path, original); err != nil {
@@ -102,6 +167,12 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 	}
 	if loaded.GOPROXY != original.GOPROXY {
 		t.Fatalf("expected GOPROXY %q, got %q", original.GOPROXY, loaded.GOPROXY)
+	}
+	if loaded.CGOEnabled == nil {
+		t.Fatal("expected non-nil CGOEnabled after roundtrip")
+	}
+	if *loaded.CGOEnabled != *original.CGOEnabled {
+		t.Fatalf("expected CGOEnabled %v, got %v", *original.CGOEnabled, *loaded.CGOEnabled)
 	}
 }
 

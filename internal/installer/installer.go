@@ -14,7 +14,8 @@ type Installer interface {
 
 // DefaultInstaller implements Installer using go install.
 type DefaultInstaller struct {
-	goproxy string
+	goproxy    string
+	cgoenabled *bool
 }
 
 // NewDefaultInstaller creates a new DefaultInstaller.
@@ -28,9 +29,17 @@ func NewDefaultInstallerWithGOPROXY(goproxy string) *DefaultInstaller {
 	return &DefaultInstaller{goproxy: goproxy}
 }
 
+// NewDefaultInstallerWithOptions creates a new DefaultInstaller with the provided
+// installer options. Non-empty goproxy overrides the GOPROXY environment variable;
+// non-nil cgoenabled overrides the CGO_ENABLED environment variable.
+func NewDefaultInstallerWithOptions(goproxy string, cgoenabled *bool) *DefaultInstaller {
+	return &DefaultInstaller{goproxy: goproxy, cgoenabled: cgoenabled}
+}
+
 // buildInstallCmd creates the exec.Cmd for "go install {modulePath}@{version}" with the
 // current process environment so that variables such as GOPROXY are forwarded.
 // If the installer was configured with a GOPROXY value it overrides any inherited GOPROXY.
+// If the installer was configured with a CGO_ENABLED value it overrides any inherited CGO_ENABLED.
 func (d *DefaultInstaller) buildInstallCmd(modulePath, version string) *exec.Cmd {
 	cmd := exec.Command("go", "install", modulePath+"@"+version)
 	env := os.Environ()
@@ -42,6 +51,19 @@ func (d *DefaultInstaller) buildInstallCmd(modulePath, version string) *exec.Cmd
 			}
 		}
 		env = append(filtered, "GOPROXY="+d.goproxy)
+	}
+	if d.cgoenabled != nil {
+		value := "1"
+		if !*d.cgoenabled {
+			value = "0"
+		}
+		filtered := make([]string, 0, len(env))
+		for _, e := range env {
+			if !strings.HasPrefix(e, "CGO_ENABLED=") {
+				filtered = append(filtered, e)
+			}
+		}
+		env = append(filtered, "CGO_ENABLED="+value)
 	}
 	cmd.Env = env
 	return cmd

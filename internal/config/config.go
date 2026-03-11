@@ -18,6 +18,7 @@ type Config struct {
 	Apps       []App  `yaml:"apps"`
 	GitHubAuth bool   `yaml:"github_auth"`
 	GOPROXY    string `yaml:"goproxy,omitempty"`
+	CGOEnabled *bool  `yaml:"cgo_enabled,omitempty"`
 }
 
 // DefaultPath returns the default config file path (~/.gogitup).
