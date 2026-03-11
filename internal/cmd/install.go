@@ -41,7 +41,7 @@ func runInstall(args []string) {
 	}
 
 	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
-	inst := installer.NewDefaultInstallerWithGOPROXY(cfg.GOPROXY)
+	inst := installer.NewDefaultInstallerWithOptions(cfg.GOPROXY, cfg.CGOEnabled)
 	runner := &goversion.DefaultRunner{}
 
 	deps := installDependencies{

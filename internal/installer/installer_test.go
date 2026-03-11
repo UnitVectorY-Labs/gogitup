@@ -146,3 +146,61 @@ func TestBuildInstallCmdArgs(t *testing.T) {
 		t.Fatalf("expected args[2]='github.com/example/tool@v1.2.3', got %q", args[2])
 	}
 }
+
+// TestNewDefaultInstallerWithOptionsCGODisabled verifies that cgo_enabled=false sets CGO_ENABLED=0.
+func TestNewDefaultInstallerWithOptionsCGODisabled(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "1")
+	cgoDisabled := false
+	inst := NewDefaultInstallerWithOptions("", &cgoDisabled)
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	found := false
+	for _, e := range cmd.Env {
+		if strings.HasPrefix(e, "CGO_ENABLED=") {
+			if e != "CGO_ENABLED=0" {
+				t.Fatalf("expected CGO_ENABLED=0, got %s", e)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("CGO_ENABLED not found in command environment")
+	}
+}
+
+// TestNewDefaultInstallerWithOptionsCGOEnabled verifies that cgo_enabled=true sets CGO_ENABLED=1.
+func TestNewDefaultInstallerWithOptionsCGOEnabled(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "0")
+	cgoEnabled := true
+	inst := NewDefaultInstallerWithOptions("", &cgoEnabled)
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	found := false
+	for _, e := range cmd.Env {
+		if strings.HasPrefix(e, "CGO_ENABLED=") {
+			if e != "CGO_ENABLED=1" {
+				t.Fatalf("expected CGO_ENABLED=1, got %s", e)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("CGO_ENABLED not found in command environment")
+	}
+}
+
+// TestNewDefaultInstallerWithOptionsNilCGOEnabled verifies that a nil cgoenabled inherits CGO_ENABLED from the environment.
+func TestNewDefaultInstallerWithOptionsNilCGOEnabled(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "0")
+	inst := NewDefaultInstallerWithOptions("", nil)
+	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
+
+	for _, e := range cmd.Env {
+		if e == "CGO_ENABLED=0" {
+			return
+		}
+	}
+	t.Fatal("expected inherited CGO_ENABLED=0 not found in command environment")
+}

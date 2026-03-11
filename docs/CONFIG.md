@@ -38,6 +38,7 @@ goproxy: "https://proxy.golang.org"
 | `apps[].name` | string | - | Binary name of the registered application |
 | `github_auth` | boolean | `false` | Enable authenticated GitHub API requests |
 | `goproxy` | string | `""` | Override the `GOPROXY` environment variable used when running `go install` |
+| `cgo_enabled` | boolean | (inherited) | Override the `CGO_ENABLED` environment variable used when running `go install` |
 
 ## GitHub Authentication
 
@@ -56,6 +57,13 @@ When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` 
 
 {: .note }
 If `goproxy` is not set or is empty, the `GOPROXY` value is inherited from the current process environment (the default Go behavior).
+
+## CGO_ENABLED
+
+When `cgo_enabled` is set, **gogitup** passes the configured value as the `CGO_ENABLED` environment variable when running `go install` (during both `install` and `update`). Setting `cgo_enabled: false` disables cgo for all installs and updates, which is useful in environments where cgo is unavailable or undesirable.
+
+{: .note }
+If `cgo_enabled` is not set, the `CGO_ENABLED` value is inherited from the current process environment (the default Go behavior).
 
 ## Cache File
 
