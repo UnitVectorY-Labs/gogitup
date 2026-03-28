@@ -1,0 +1,11 @@
+name: gogitup
+default_branch: main
+config:
+  description: "Stop manually checking versions. Keep the tools you installed with go install updated with a single command."
+  license: MIT
+  language: go
+  release: release-go
+  justfile: true
+  docs:
+    enabled: true
+    domain: gogitup.unitvectorylabs.com

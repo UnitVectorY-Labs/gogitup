@@ -1,13 +1,12 @@
 
-# List all available commands
+# Commands for gogitup
 default:
   @just --list
-
-# Build the Go application
+# Build gogitup with Go
 build:
   go build ./...
 
-# Run the Go tests
+# Run tests for gogitup with Go
 test:
   go clean -testcache
   go test ./...
