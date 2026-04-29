@@ -18,7 +18,7 @@ You installed a handful of Go tools with `go install`, but now they're out of da
 go install github.com/UnitVectorY-Labs/gogitup@latest
 
 # Register a tool you installed with `go install` from github.com
-gogitup add ghorgsync
+gogitup add gogitup
 
 # Check for updates
 gogitup check
