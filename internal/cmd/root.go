@@ -19,7 +19,7 @@ func Execute(version string) {
 
 	switch subcmd {
 	case "--version", "-v":
-		fmt.Println("gogitup " + version)
+		fmt.Println("gogitup version " + version)
 	case "add":
 		runAdd(os.Args[2:])
 	case "install":
