@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -197,10 +198,8 @@ func TestNewDefaultInstallerWithOptionsNilCGOEnabled(t *testing.T) {
 	inst := NewDefaultInstallerWithOptions("", nil)
 	cmd := inst.buildInstallCmd("github.com/example/tool", "v1.0.0")
 
-	for _, e := range cmd.Env {
-		if e == "CGO_ENABLED=0" {
-			return
-		}
+	if slices.Contains(cmd.Env, "CGO_ENABLED=0") {
+		return
 	}
 	t.Fatal("expected inherited CGO_ENABLED=0 not found in command environment")
 }
