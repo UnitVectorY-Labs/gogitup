@@ -46,7 +46,7 @@ cd gogitup
 go build -o gogitup
 ```
 
-## Updating with gogitup
+## Upgrading with gogitup
 
 ### Registering with gogitup
 
@@ -56,10 +56,10 @@ Tell **gogitup** that it should manage the updates for **gogitup**:
 gogitup add gogitup
 ```
 
-### Updating with gogitup
+### Upgrading with gogitup
 
-Update the registered packages using **gogitup**:
+Upgrade the registered packages using **gogitup**:
 
 ```bash
-gogitup update
+gogitup upgrade
 ```

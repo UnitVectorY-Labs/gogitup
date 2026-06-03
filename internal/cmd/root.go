@@ -30,8 +30,8 @@ func Execute(version string) {
 		runList(os.Args[2:])
 	case "check":
 		runCheck(os.Args[2:])
-	case "update":
-		runUpdate(os.Args[2:])
+	case "upgrade":
+		runUpgrade(os.Args[2:])
 	case "--help", "-h", "help":
 		printHelp()
 	default:
@@ -53,7 +53,7 @@ func printHelp() {
 	fmt.Printf("    %sremove%s <name>    Remove a registered binary\n", output.Cyan, output.Reset)
 	fmt.Printf("    %slist%s             List registered binaries and installed versions\n", output.Cyan, output.Reset)
 	fmt.Printf("    %scheck%s            Check for available updates\n", output.Cyan, output.Reset)
-	fmt.Printf("    %supdate%s           Update all binaries with available updates\n", output.Cyan, output.Reset)
+	fmt.Printf("    %supgrade%s          Upgrade all binaries with available updates\n", output.Cyan, output.Reset)
 	fmt.Println()
 	fmt.Printf("  %sFlags:%s\n", output.Bold, output.Reset)
 	fmt.Printf("    %s--version, -v%s    Print version\n", output.Cyan, output.Reset)

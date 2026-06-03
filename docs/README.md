@@ -23,6 +23,6 @@ gogitup add gogitup
 # Check for updates
 gogitup check
 
-# Update all tracked tools
-gogitup update
+# Upgrade all tracked tools
+gogitup upgrade
 ```

@@ -61,21 +61,21 @@ Update Check
 {: .important }
 The `check` command only checks for updates once every 24 hours caching the latest release information. Use `gogitup check --force` to bypass the cache and re-fetch from GitHub.
 
-## Updating All Tools
+## Upgrading All Tools
 
-Run a single command to update every tracked binary that has a newer release:
+Run a single command to upgrade every tracked binary that has a newer release:
 
 ```bash
-gogitup update
+gogitup upgrade
 ```
 
 ```
-gogitup update --verbose
-⟳ Updating 'bulkfilepr' from v0.2.2 to v0.2.3...
-✓ Updated 'bulkfilepr' to v0.2.3
+gogitup upgrade --verbose
+⟳ Upgrading 'bulkfilepr' from v0.2.2 to v0.2.3...
+✓ Upgraded 'bulkfilepr' to v0.2.3
 ℹ 'ghorgsync' is already up to date (v0.1.0)
 
-✓ Updated 1 binary(ies).
+✓ Upgraded 1 binary(ies).
 ```
 
 ## Using JSON Output for Scripting

@@ -15,11 +15,11 @@ import (
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
 )
 
-type updateOptions struct {
+type upgradeOptions struct {
 	Verbose bool
 }
 
-type updateDependencies struct {
+type upgradeDependencies struct {
 	runner    goversion.Runner
 	ghClient  github.Client
 	installer installer.Installer
@@ -27,20 +27,20 @@ type updateDependencies struct {
 	errOut    *output.Writer
 }
 
-func parseUpdateOptions(args []string, stderr io.Writer) (updateOptions, error) {
-	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+func parseUpgradeOptions(args []string, stderr io.Writer) (upgradeOptions, error) {
+	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
 	verboseFlag := fs.Bool("verbose", false, "Show binaries that are already up to date")
 	if err := fs.Parse(args); err != nil {
-		return updateOptions{}, err
+		return upgradeOptions{}, err
 	}
 
-	return updateOptions{Verbose: *verboseFlag}, nil
+	return upgradeOptions{Verbose: *verboseFlag}, nil
 }
 
-func runUpdate(args []string) {
-	opts, err := parseUpdateOptions(args, output.ErrorWriter.Out)
+func runUpgrade(args []string) {
+	opts, err := parseUpgradeOptions(args, output.ErrorWriter.Out)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
@@ -70,14 +70,14 @@ func runUpdate(args []string) {
 	runner := &goversion.DefaultRunner{}
 	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
 	inst := installer.NewDefaultInstallerWithOptions(cfg.GOPROXY, cfg.CGOEnabled)
-	deps := updateDependencies{
+	deps := upgradeDependencies{
 		runner:    runner,
 		ghClient:  ghClient,
 		installer: inst,
 		out:       output.DefaultWriter,
 		errOut:    output.ErrorWriter,
 	}
-	updated := runUpdateApps(cfg, c, opts, deps)
+	updated := runUpgradeApps(cfg, c, opts, deps)
 
 	// Save updated cache
 	_ = cache.Save(cachePath, c)
@@ -86,11 +86,11 @@ func runUpdate(args []string) {
 	if updated == 0 {
 		deps.out.Info("All binaries are up to date.")
 	} else {
-		deps.out.Success(fmt.Sprintf("Updated %d binary(ies).", updated))
+		deps.out.Success(fmt.Sprintf("Upgraded %d binary(ies).", updated))
 	}
 }
 
-func runUpdateApps(cfg *config.Config, c *cache.Cache, opts updateOptions, deps updateDependencies) int {
+func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, deps upgradeDependencies) int {
 	updated := 0
 
 	for _, app := range cfg.Apps {
@@ -117,36 +117,36 @@ func runUpdateApps(cfg *config.Config, c *cache.Cache, opts updateOptions, deps 
 
 		if info.Version == latest {
 			if opts.Verbose {
-				deps.out.Info(updateUpToDateMessage(app.Name, info.Version))
+				deps.out.Info(upgradeUpToDateMessage(app.Name, info.Version))
 			}
 			continue
 		}
 
-		deps.out.StartProgress(updateProgressMessage(app.Name, info.Version, latest))
+		deps.out.StartProgress(upgradeProgressMessage(app.Name, info.Version, latest))
 
 		_, err = deps.installer.Install(info.Path, latest)
 		if err != nil {
-			deps.errOut.Error(fmt.Sprintf("Failed to update '%s': %v", app.Name, err))
+			deps.errOut.Error(fmt.Sprintf("Failed to upgrade '%s': %v", app.Name, err))
 			continue
 		}
 
-		deps.out.Success(updateSuccessMessage(app.Name, latest))
+		deps.out.Success(upgradeSuccessMessage(app.Name, latest))
 		updated++
 	}
 
 	return updated
 }
 
-func updateUpToDateMessage(name, version string) string {
+func upgradeUpToDateMessage(name, version string) string {
 	return fmt.Sprintf("'%s' is already up to date (%s)", name, installedVersion(version))
 }
 
-func updateProgressMessage(name, currentVersion, latestVersion string) string {
-	return fmt.Sprintf("Updating '%s' from %s to %s", name, installedVersion(currentVersion), latestVersionLabel(latestVersion))
+func upgradeProgressMessage(name, currentVersion, latestVersion string) string {
+	return fmt.Sprintf("Upgrading '%s' from %s to %s", name, installedVersion(currentVersion), latestVersionLabel(latestVersion))
 }
 
-func updateSuccessMessage(name, version string) string {
-	return fmt.Sprintf("Updated '%s' to %s", name, installedVersion(version))
+func upgradeSuccessMessage(name, version string) string {
+	return fmt.Sprintf("Upgraded '%s' to %s", name, installedVersion(version))
 }
 
 func installedVersion(version string) string {
