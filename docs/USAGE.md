@@ -60,7 +60,7 @@ gogitup install <owner/repo>
 1. Fetches the latest release tag for the repository from the GitHub Releases API.
 2. Runs `go install github.com/<owner>/<repo>@<latest>`.
 3. Verifies that the resulting binary (named after the repository) is available on `PATH`.
-4. Registers the binary with **gogitup** for future `check` and `update` tracking.
+4. Registers the binary with **gogitup** for future `check` and `upgrade` tracking.
 
 If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually.
 
@@ -68,7 +68,7 @@ If the installed binary name differs from the repository name (uncommon), the in
 
 ## `remove`
 
-Removes a binary from tracking. The binary itself is not uninstalled, **gogitup** just stops tracking it for updates when you run `check` or `update`.
+Removes a binary from tracking. The binary itself is not uninstalled, **gogitup** just stops tracking it for updates when you run `check` or `upgrade`.
 
 ```bash
 gogitup remove <name>
@@ -125,18 +125,18 @@ By default, `check` uses a non-expired cache entry to reduce GitHub API calls. U
 
 ---
 
-## `update`
+## `upgrade`
 
-Checks for updates and runs `go install` to update every registered binary that has a newer release available.
+Checks for updates and runs `go install` to upgrade every registered binary that has a newer release available.
 
 ```bash
-gogitup update
+gogitup upgrade
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `--verbose` | No | `false` | Show binaries that are already up to date while checking for updates |
 
-**What `update` does:**
+**What `upgrade` does:**
 
-`update` uses installed binary metadata (`go version -m -json`) plus the GitHub Releases API to find the latest release, then runs `go install <module>@<tag>` when an update is available. It refreshes the cache with the latest fetched tag and always fetches fresh release data (it does not rely on cached latest-version values).
+`upgrade` uses installed binary metadata (`go version -m -json`) plus the GitHub Releases API to find the latest release, then runs `go install <module>@<tag>` when an update is available. It refreshes the cache with the latest fetched tag and always fetches fresh release data (it does not rely on cached latest-version values).

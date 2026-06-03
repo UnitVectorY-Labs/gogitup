@@ -67,12 +67,12 @@ func (s *stubInstaller) Install(modulePath, version string) (string, error) {
 	return "ok", nil
 }
 
-func TestParseUpdateOptionsVerbose(t *testing.T) {
+func TestParseUpgradeOptionsVerbose(t *testing.T) {
 	var stderr bytes.Buffer
 
-	opts, err := parseUpdateOptions([]string{"--verbose"}, &stderr)
+	opts, err := parseUpgradeOptions([]string{"--verbose"}, &stderr)
 	if err != nil {
-		t.Fatalf("parseUpdateOptions returned error: %v", err)
+		t.Fatalf("parseUpgradeOptions returned error: %v", err)
 	}
 
 	if !opts.Verbose {
@@ -80,7 +80,7 @@ func TestParseUpdateOptionsVerbose(t *testing.T) {
 	}
 }
 
-func TestRunUpdateAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
+func TestRunUpgradeAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
 	cfg := &config.Config{
 		Apps: []config.App{
 			{Name: "current"},
@@ -104,7 +104,7 @@ func TestRunUpdateAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	updated := runUpdateApps(cfg, c, updateOptions{}, updateDependencies{
+	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
 		runner:    runner,
 		ghClient:  ghClient,
 		installer: installer,
@@ -119,12 +119,12 @@ func TestRunUpdateAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
 		t.Fatalf("expected default output to suppress up-to-date entries, got %q", stdout.String())
 	}
 
-	progress := "Updating 'stale' from " + output.Green + "v1.0.0" + output.Reset + " to " + output.Cyan + "v1.1.0" + output.Reset
+	progress := "Upgrading 'stale' from " + output.Green + "v1.0.0" + output.Reset + " to " + output.Cyan + "v1.1.0" + output.Reset
 	if !strings.Contains(stdout.String(), progress) {
 		t.Fatalf("expected progress output %q, got %q", progress, stdout.String())
 	}
 
-	success := "Updated 'stale' to " + output.Green + "v1.1.0" + output.Reset
+	success := "Upgraded 'stale' to " + output.Green + "v1.1.0" + output.Reset
 	if !strings.Contains(stdout.String(), success) {
 		t.Fatalf("expected success output %q, got %q", success, stdout.String())
 	}
@@ -151,7 +151,7 @@ func TestRunUpdateAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
 	}
 }
 
-func TestRunUpdateAppsVerboseIncludesUpToDateEntries(t *testing.T) {
+func TestRunUpgradeAppsVerboseIncludesUpToDateEntries(t *testing.T) {
 	cfg := &config.Config{
 		Apps: []config.App{
 			{Name: "current"},
@@ -175,7 +175,7 @@ func TestRunUpdateAppsVerboseIncludesUpToDateEntries(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	updated := runUpdateApps(cfg, c, updateOptions{Verbose: true}, updateDependencies{
+	updated := runUpgradeApps(cfg, c, upgradeOptions{Verbose: true}, upgradeDependencies{
 		runner:    runner,
 		ghClient:  ghClient,
 		installer: installer,

@@ -53,14 +53,14 @@ If neither source provides a token, requests are made without authentication.
 
 ## GOPROXY
 
-When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when running `go install` (during both `install` and `update`). This is useful in environments that require a custom module proxy.
+When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when running `go install` (during both `install` and `upgrade`). This is useful in environments that require a custom module proxy.
 
 {: .note }
 If `goproxy` is not set or is empty, the `GOPROXY` value is inherited from the current process environment (the default Go behavior).
 
 ## CGO_ENABLED
 
-When `cgo_enabled` is set, **gogitup** passes the configured value as the `CGO_ENABLED` environment variable when running `go install` (during both `install` and `update`). Setting `cgo_enabled: false` disables cgo for all installs and updates, which is useful in environments where cgo is unavailable or undesirable.
+When `cgo_enabled` is set, **gogitup** passes the configured value as the `CGO_ENABLED` environment variable when running `go install` (during both `install` and `upgrade`). Setting `cgo_enabled: false` disables cgo for all installs and updates, which is useful in environments where cgo is unavailable or undesirable.
 
 {: .note }
 If `cgo_enabled` is not set, the `CGO_ENABLED` value is inherited from the current process environment (the default Go behavior).
@@ -70,7 +70,7 @@ If `cgo_enabled` is not set, the `CGO_ENABLED` value is inherited from the curre
 The cache file is located at `~/.gogitup.cache` and uses YAML format. It stores the latest version information retrieved from GitHub so that repeated checks do not require additional API calls.
 
 {: .important }
-Cache entries expire after **24 hours**. After expiry the next `check` or `update` will re-fetch the latest release from GitHub. A check can be forced with `--force` to bypass the cache, but the purpose of the cache is to avoid unnecessary API calls to GitHub.
+Cache entries expire after **24 hours**. After expiry the next `check` or `upgrade` will re-fetch the latest release from GitHub. A check can be forced with `--force` to bypass the cache, but the purpose of the cache is to avoid unnecessary API calls to GitHub.
 
 ### Example
 
