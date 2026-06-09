@@ -8,6 +8,7 @@ import (
 
 	"github.com/UnitVectorY-Labs/gogitup/internal/cache"
 	"github.com/UnitVectorY-Labs/gogitup/internal/config"
+	"github.com/UnitVectorY-Labs/gogitup/internal/gomodule"
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
 )
@@ -57,6 +58,30 @@ type installCall struct {
 type stubInstaller struct {
 	calls []installCall
 	err   error
+}
+
+type stubModuleResolver struct {
+	results map[string]gomodule.Result
+	errs    map[string]error
+	calls   []moduleCheckCall
+}
+
+type moduleCheckCall struct {
+	modulePath       string
+	installedVersion string
+}
+
+func (s *stubModuleResolver) Check(modulePath, installedVersion string) (gomodule.Result, error) {
+	s.calls = append(s.calls, moduleCheckCall{modulePath: modulePath, installedVersion: installedVersion})
+	key := modulePath + "@" + installedVersion
+	if err, ok := s.errs[key]; ok {
+		return gomodule.Result{}, err
+	}
+	result, ok := s.results[key]
+	if !ok {
+		return gomodule.Result{}, errors.New("version result not found")
+	}
+	return result, nil
 }
 
 func (s *stubInstaller) Install(modulePath, version string) (string, error) {
@@ -194,5 +219,128 @@ func TestRunUpgradeAppsVerboseIncludesUpToDateEntries(t *testing.T) {
 
 	if stderr.Len() != 0 {
 		t.Fatalf("expected no stderr output, got %q", stderr.String())
+	}
+}
+
+func TestRunUpgradeAppsUsesPackagePathForNonGitHubModule(t *testing.T) {
+	cfg := &config.Config{
+		Apps: []config.App{{
+			Name:        "govulncheck",
+			InstallPath: "golang.org/x/vuln/cmd/govulncheck",
+		}},
+	}
+	c := &cache.Cache{Entries: map[string]cache.Entry{}}
+	runner := &stubRunner{
+		infos: map[string]*goversion.Info{
+			"govulncheck": {Path: "golang.org/x/vuln", Version: "v1.0.0"},
+		},
+	}
+	resolver := &stubModuleResolver{
+		results: map[string]gomodule.Result{
+			"golang.org/x/vuln@v1.0.0": {LatestVersion: "v1.1.0", UpdateAvailable: true},
+		},
+	}
+	installer := &stubInstaller{}
+	var stdout, stderr bytes.Buffer
+
+	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:    runner,
+		ghClient:  &stubGitHubClient{},
+		resolver:  resolver,
+		installer: installer,
+		out:       &output.Writer{Out: &stdout},
+		errOut:    &output.Writer{Out: &stderr},
+	})
+
+	if updated != 1 {
+		t.Fatalf("expected 1 updated binary, got %d", updated)
+	}
+	if len(installer.calls) != 1 {
+		t.Fatalf("expected 1 install call, got %d", len(installer.calls))
+	}
+	if installer.calls[0].modulePath != "golang.org/x/vuln/cmd/govulncheck" || installer.calls[0].version != "v1.1.0" {
+		t.Fatalf("unexpected install call: %+v", installer.calls[0])
+	}
+}
+
+func TestRunUpgradeAppsUsesEmbeddedPackagePathWhenConfigPathIsMissing(t *testing.T) {
+	cfg := &config.Config{
+		Apps: []config.App{{Name: "govulncheck"}},
+	}
+	c := &cache.Cache{Entries: map[string]cache.Entry{}}
+	runner := &stubRunner{
+		infos: map[string]*goversion.Info{
+			"govulncheck": {
+				Path:        "golang.org/x/vuln",
+				PackagePath: "golang.org/x/vuln/cmd/govulncheck",
+				Version:     "v1.0.0",
+			},
+		},
+	}
+	resolver := &stubModuleResolver{
+		results: map[string]gomodule.Result{
+			"golang.org/x/vuln@v1.0.0": {LatestVersion: "v1.1.0", UpdateAvailable: true},
+		},
+	}
+	installer := &stubInstaller{}
+
+	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:    runner,
+		ghClient:  &stubGitHubClient{},
+		resolver:  resolver,
+		installer: installer,
+		out:       &output.Writer{Out: &bytes.Buffer{}},
+		errOut:    &output.Writer{Out: &bytes.Buffer{}},
+	})
+
+	if updated != 1 {
+		t.Fatalf("expected 1 updated binary, got %d", updated)
+	}
+	if len(installer.calls) != 1 {
+		t.Fatalf("expected 1 install call, got %d", len(installer.calls))
+	}
+	if installer.calls[0].modulePath != "golang.org/x/vuln/cmd/govulncheck" || installer.calls[0].version != "v1.1.0" {
+		t.Fatalf("unexpected install call: %+v", installer.calls[0])
+	}
+}
+
+func TestRunUpgradeAppsDoesNotDowngradeNonGitHubModule(t *testing.T) {
+	const installedVersion = "v1.3.1-0.20260508232743-57fb27ec3243"
+	cfg := &config.Config{
+		Apps: []config.App{{
+			Name:        "govulncheck",
+			InstallPath: "golang.org/x/vuln/cmd/govulncheck",
+		}},
+	}
+	c := &cache.Cache{Entries: map[string]cache.Entry{}}
+	runner := &stubRunner{
+		infos: map[string]*goversion.Info{
+			"govulncheck": {Path: "golang.org/x/vuln", Version: installedVersion},
+		},
+	}
+	resolver := &stubModuleResolver{
+		results: map[string]gomodule.Result{
+			"golang.org/x/vuln@" + installedVersion: {LatestVersion: installedVersion},
+		},
+	}
+	installer := &stubInstaller{}
+
+	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:    runner,
+		ghClient:  &stubGitHubClient{},
+		resolver:  resolver,
+		installer: installer,
+		out:       &output.Writer{Out: &bytes.Buffer{}},
+		errOut:    &output.Writer{Out: &bytes.Buffer{}},
+	})
+
+	if updated != 0 {
+		t.Fatalf("expected no updates, got %d", updated)
+	}
+	if len(installer.calls) != 0 {
+		t.Fatalf("expected no install calls, got %d", len(installer.calls))
+	}
+	if len(resolver.calls) != 1 || resolver.calls[0].installedVersion != installedVersion {
+		t.Fatalf("unexpected resolver calls: %+v", resolver.calls)
 	}
 }

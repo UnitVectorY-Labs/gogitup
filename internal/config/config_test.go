@@ -139,7 +139,10 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 
 	cgoDisabled := false
 	original := &Config{
-		Apps:       []App{{Name: "myapp"}, {Name: "otherapp"}},
+		Apps: []App{
+			{Name: "myapp"},
+			{Name: "govulncheck", InstallPath: "golang.org/x/vuln/cmd/govulncheck"},
+		},
 		GitHubAuth: true,
 		GOPROXY:    "https://proxy.example.com,direct",
 		CGOEnabled: &cgoDisabled,
@@ -160,6 +163,9 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 	for i, app := range loaded.Apps {
 		if app.Name != original.Apps[i].Name {
 			t.Fatalf("expected app %s, got %s", original.Apps[i].Name, app.Name)
+		}
+		if app.InstallPath != original.Apps[i].InstallPath {
+			t.Fatalf("expected install path %q, got %q", original.Apps[i].InstallPath, app.InstallPath)
 		}
 	}
 	if loaded.GitHubAuth != original.GitHubAuth {

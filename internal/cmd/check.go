@@ -9,6 +9,7 @@ import (
 	"github.com/UnitVectorY-Labs/gogitup/internal/cache"
 	"github.com/UnitVectorY-Labs/gogitup/internal/config"
 	"github.com/UnitVectorY-Labs/gogitup/internal/github"
+	"github.com/UnitVectorY-Labs/gogitup/internal/gomodule"
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
 )
@@ -23,7 +24,7 @@ type checkEntry struct {
 func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	jsonFlag := fs.Bool("json", false, "Output as JSON")
-	forceFlag := fs.Bool("force", false, "Refresh latest version from GitHub, ignoring cache")
+	forceFlag := fs.Bool("force", false, "Refresh version information, ignoring cache")
 	_ = fs.Parse(args)
 
 	cfgPath := config.DefaultPath()
@@ -47,6 +48,7 @@ func runCheck(args []string) {
 
 	runner := &goversion.DefaultRunner{}
 	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
+	moduleResolver := gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY)
 
 	entries := make([]checkEntry, 0, len(cfg.Apps))
 
@@ -61,29 +63,23 @@ func runCheck(args []string) {
 		}
 		entry.InstalledVersion = info.Version
 
-		owner, repo, err := goversion.ParseGitHubRepo(info.Path)
-		if err != nil {
-			output.Warn(fmt.Sprintf("Could not parse GitHub repo for '%s': %v", app.Name, err))
-			entries = append(entries, entry)
-			continue
-		}
-
-		// Check cache first unless --force is set.
+		// Cached update decisions are valid only for the installed version checked.
 		cached, found := cache.Get(c, app.Name)
-		if !*forceFlag && found && !cache.IsExpired(cached, cache.DefaultTTL) {
+		if !*forceFlag && found && cached.InstalledVersion == info.Version && !cache.IsExpired(cached, cache.DefaultTTL) {
 			entry.LatestVersion = cached.LatestVersion
+			entry.UpdateAvailable = entry.InstalledVersion != entry.LatestVersion
 		} else {
-			latest, err := ghClient.GetLatestRelease(owner, repo)
+			result, err := checkForUpdate(info.Path, info.Version, ghClient, moduleResolver)
 			if err != nil {
-				output.Warn(fmt.Sprintf("Could not fetch latest release for '%s': %v", app.Name, err))
+				output.Warn(fmt.Sprintf("Could not fetch latest version for '%s': %v", app.Name, err))
 				entries = append(entries, entry)
 				continue
 			}
-			entry.LatestVersion = latest
-			cache.Set(c, app.Name, latest)
+			entry.LatestVersion = result.latestVersion
+			entry.UpdateAvailable = result.updateAvailable
+			cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
 		}
 
-		entry.UpdateAvailable = entry.InstalledVersion != entry.LatestVersion
 		entries = append(entries, entry)
 	}
 

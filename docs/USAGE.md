@@ -27,7 +27,7 @@ permalink: /usage
 
 ## `add`
 
-Registers a binary for tracking with **gogitup**. The binary must already be installed via `go install` and must originate from a `github.com` module path.
+Registers a binary for tracking with **gogitup**. The binary must already be installed via `go install`.
 
 ```bash
 gogitup add <name>
@@ -39,28 +39,35 @@ gogitup add <name>
 
 **What `add` does:**
 
-`add` inspects the installed binary with `go version -m -json` to confirm it was installed with Go tooling and to extract the embedded module path. The module path must resolve to a `github.com/<owner>/<repo>` repository.
+`add` inspects the installed binary with `go version -m -json` to confirm it was installed with Go tooling and to extract its module and command package paths.
 
 ---
 
 ## `install`
 
-Installs a binary from GitHub using `go install` and registers it with **gogitup** in a single step.
+Installs a Go binary and registers it with **gogitup** in a single step. Existing GitHub `owner/repo` inputs remain supported, and full Go command package paths can also be used.
 
 ```bash
-gogitup install <owner/repo>
+gogitup install <owner/repo|package-path>
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `<owner/repo>` | Yes | None | GitHub repository in `owner/repo` format (for example `UnitVectorY-Labs/gogitup`) |
+| `<owner/repo\|package-path>` | Yes | None | GitHub repository or full Go command package path |
+
+```bash
+gogitup install UnitVectorY-Labs/gogitup
+gogitup install golang.org/x/vuln/cmd/govulncheck
+```
 
 **What `install` does:**
 
-1. Fetches the latest release tag for the repository from the GitHub Releases API.
-2. Runs `go install github.com/<owner>/<repo>@<latest>`.
-3. Verifies that the resulting binary (named after the repository) is available on `PATH`.
+1. For GitHub repository and command package paths, fetches the latest GitHub release tag.
+2. For a non-GitHub package path, uses `@latest`.
+3. Verifies that the resulting binary (named after the final path component) is available on `PATH`.
 4. Registers the binary with **gogitup** for future `check` and `upgrade` tracking.
+
+An optional `@latest` suffix is accepted. Explicit version suffixes are not supported.
 
 If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually.
 
@@ -100,7 +107,7 @@ gogitup list [--json]
 
 ## `check`
 
-Checks GitHub for newer releases of all registered binaries. Displays the installed version alongside the latest available version.
+Checks for newer versions of all registered binaries. GitHub modules use GitHub Releases. Other modules use `go list -m -u -json <module>@<installed-version>` so the Go toolchain determines whether a newer version is available.
 
 ```bash
 gogitup check [--json] [--force]
@@ -109,19 +116,19 @@ gogitup check [--json] [--force]
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `--json` | No | `false` | Output the results as JSON |
-| `--force` | No | `false` | Ignore cached latest-version values and fetch fresh release data from GitHub |
+| `--force` | No | `false` | Ignore cached latest-version values and fetch fresh version data |
 
 **What `check` does:**
 
 `gogitup check` determines update status by combining:
 
 1. Installed binary metadata from `go version -m -json`.
-2. The embedded module path (must be a `github.com/<owner>/<repo>` module).
-3. The GitHub Releases API (`/repos/<owner>/<repo>/releases/latest`) for the latest release tag.
-4. The local cache file `~/.gogitup.cache` (latest release tags cached for 24 hours).
+2. The embedded module path.
+3. GitHub Releases for GitHub modules, or the `Update` result from `go list -m -u -json <module>@<installed-version>` for other modules.
+4. The local cache file `~/.gogitup.cache` (version-check results cached for 24 hours).
 
 {: .important }
-By default, `check` uses a non-expired cache entry to reduce GitHub API calls. Use `gogitup check --force` to bypass the cache and refresh the cached value immediately.
+By default, `check` uses a non-expired cache entry to reduce remote lookups. Cached results are tied to the installed version that was checked; changing a binary outside **gogitup** causes a fresh lookup. Use `gogitup check --force` to bypass the cache and refresh the cached value immediately.
 
 ---
 
@@ -139,4 +146,4 @@ gogitup upgrade
 
 **What `upgrade` does:**
 
-`upgrade` uses installed binary metadata (`go version -m -json`) plus the GitHub Releases API to find the latest release, then runs `go install <module>@<tag>` when an update is available. It refreshes the cache with the latest fetched tag and always fetches fresh release data (it does not rely on cached latest-version values).
+`upgrade` uses installed binary metadata (`go version -m -json`) and the appropriate version source to find an update, then runs `go install <package>@<version>` when one is available. For non-GitHub modules, the Go toolchain reports an update only when it considers a newer version available; a merely different version does not trigger an install or downgrade. For command packages below a module root, **gogitup** stores the original package path as an optional `install_path` value in `~/.gogitup`. When that value is absent, `upgrade` uses the command package path embedded in the binary, so existing name-only configuration entries remain valid.

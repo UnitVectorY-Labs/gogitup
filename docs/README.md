@@ -7,9 +7,9 @@ permalink: /
 
 # gogitup
 
-You installed a handful of Go tools with `go install`, but now they're out of date. Checking each project's GitHub page for a new release, then re-running `go install` for every one of them, gets old fast.
+You installed a handful of Go tools with `go install`, but now they're out of date. Checking each project for a new version, then re-running `go install` for every one of them, gets old fast.
 
-**gogitup** automates that. It tracks the Go-installed binaries you care about, checks GitHub for newer releases, and runs `go install` to bring them up to date with a single easy to use command.
+**gogitup** automates that. It tracks the Go-installed binaries you care about, checks for newer versions, and runs `go install` to bring them up to date with a single easy to use command.
 
 ## Quick Start
 
@@ -17,8 +17,8 @@ You installed a handful of Go tools with `go install`, but now they're out of da
 # Install gogitup
 go install github.com/UnitVectorY-Labs/gogitup@latest
 
-# Register a tool you installed with `go install` from github.com
-gogitup add gogitup
+# Install and register a Go tool
+gogitup install golang.org/x/vuln/cmd/govulncheck
 
 # Check for updates
 gogitup check

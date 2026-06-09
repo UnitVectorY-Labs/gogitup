@@ -12,9 +12,10 @@ import (
 
 // Info holds version information about an installed Go binary.
 type Info struct {
-	Path      string
-	Version   string
-	GoVersion string
+	Path        string
+	PackagePath string
+	Version     string
+	GoVersion   string
 }
 
 // Runner is an interface for retrieving version info from Go binaries.
@@ -68,9 +69,10 @@ func ParseVersionJSON(data []byte) (*Info, error) {
 	}
 
 	return &Info{
-		Path:      entry.Main.Path,
-		Version:   entry.Main.Version,
-		GoVersion: entry.GoVersion,
+		Path:        entry.Main.Path,
+		PackagePath: entry.Path,
+		Version:     entry.Main.Version,
+		GoVersion:   entry.GoVersion,
 	}, nil
 }
 

@@ -73,7 +73,7 @@ func TestParseGitHubRepoInvalidPaths(t *testing.T) {
 
 func TestParseVersionJSON(t *testing.T) {
 	jsonData := []byte(`[{
-		"Path": "/usr/local/bin/gogitup",
+		"Path": "github.com/UnitVectorY-Labs/gogitup/cmd/gogitup",
 		"Main": {
 			"Path": "github.com/UnitVectorY-Labs/gogitup",
 			"Version": "v0.1.0"
@@ -87,6 +87,9 @@ func TestParseVersionJSON(t *testing.T) {
 	}
 	if info.Path != "github.com/UnitVectorY-Labs/gogitup" {
 		t.Fatalf("expected path github.com/UnitVectorY-Labs/gogitup, got %s", info.Path)
+	}
+	if info.PackagePath != "github.com/UnitVectorY-Labs/gogitup/cmd/gogitup" {
+		t.Fatalf("expected package path github.com/UnitVectorY-Labs/gogitup/cmd/gogitup, got %s", info.PackagePath)
 	}
 	if info.Version != "v0.1.0" {
 		t.Fatalf("expected version v0.1.0, got %s", info.Version)

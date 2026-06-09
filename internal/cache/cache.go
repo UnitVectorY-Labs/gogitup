@@ -14,8 +14,9 @@ const DefaultTTL = 24 * time.Hour
 
 // Entry represents a cached version check result for an application.
 type Entry struct {
-	LatestVersion string    `yaml:"latest_version"`
-	CheckedAt     time.Time `yaml:"checked_at"`
+	LatestVersion    string    `yaml:"latest_version"`
+	InstalledVersion string    `yaml:"installed_version,omitempty"`
+	CheckedAt        time.Time `yaml:"checked_at"`
 }
 
 // Cache represents the gogitup cache file.
@@ -70,9 +71,15 @@ func Get(c *Cache, name string) (Entry, bool) {
 
 // Set sets the cache entry for the given app name with the current time.
 func Set(c *Cache, name string, version string) {
+	SetForInstalledVersion(c, name, "", version)
+}
+
+// SetForInstalledVersion caches a version check for a specific installed version.
+func SetForInstalledVersion(c *Cache, name, installedVersion, latestVersion string) {
 	c.Entries[name] = Entry{
-		LatestVersion: version,
-		CheckedAt:     time.Now(),
+		LatestVersion:    latestVersion,
+		InstalledVersion: installedVersion,
+		CheckedAt:        time.Now(),
 	}
 }
 

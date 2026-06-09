@@ -22,7 +22,11 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 
 	original := &Cache{
 		Entries: map[string]Entry{
-			"app1": {LatestVersion: "v1.2.3", CheckedAt: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)},
+			"app1": {
+				LatestVersion:    "v1.2.3",
+				InstalledVersion: "v1.0.0",
+				CheckedAt:        time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
+			},
 			"app2": {LatestVersion: "v2.0.0", CheckedAt: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)},
 		},
 	}
@@ -46,6 +50,9 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 		}
 		if got.LatestVersion != orig.LatestVersion {
 			t.Fatalf("expected version %s for %s, got %s", orig.LatestVersion, name, got.LatestVersion)
+		}
+		if got.InstalledVersion != orig.InstalledVersion {
+			t.Fatalf("expected installed version %s for %s, got %s", orig.InstalledVersion, name, got.InstalledVersion)
 		}
 		if !got.CheckedAt.Equal(orig.CheckedAt) {
 			t.Fatalf("expected checked_at %v for %s, got %v", orig.CheckedAt, name, got.CheckedAt)
@@ -72,6 +79,23 @@ func TestGetSet(t *testing.T) {
 	}
 	if time.Since(entry.CheckedAt) > time.Second {
 		t.Fatal("expected CheckedAt to be recent")
+	}
+}
+
+func TestSetForInstalledVersion(t *testing.T) {
+	c := &Cache{Entries: make(map[string]Entry)}
+
+	SetForInstalledVersion(c, "app", "v1.0.0", "v1.1.0")
+
+	entry, ok := Get(c, "app")
+	if !ok {
+		t.Fatal("expected cache entry")
+	}
+	if entry.InstalledVersion != "v1.0.0" {
+		t.Fatalf("expected installed version v1.0.0, got %q", entry.InstalledVersion)
+	}
+	if entry.LatestVersion != "v1.1.0" {
+		t.Fatalf("expected latest version v1.1.0, got %q", entry.LatestVersion)
 	}
 }
 
