@@ -24,6 +24,12 @@ Register a Go-installed binary so gogitup can track it:
 gogitup add ghorgsync
 ```
 
+Install and register a tool directly from a full Go command package path:
+
+```bash
+gogitup install golang.org/x/vuln/cmd/govulncheck
+```
+
 ## Listing Tracked Tools
 
 View all registered binaries and their installed versions:
@@ -43,7 +49,7 @@ Registered Binaries
 
 ## Checking for Updates
 
-See which tools have newer releases available on GitHub:
+See which tools have newer versions available:
 
 ```bash
 gogitup check
@@ -59,7 +65,7 @@ Update Check
 ```
 
 {: .important }
-The `check` command only checks for updates once every 24 hours caching the latest release information. Use `gogitup check --force` to bypass the cache and re-fetch from GitHub.
+The `check` command only checks for updates once every 24 hours, caching the latest version information. Use `gogitup check --force` to bypass the cache and fetch it again.
 
 ## Upgrading All Tools
 

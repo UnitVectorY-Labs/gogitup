@@ -22,12 +22,11 @@ type installDependencies struct {
 
 func runInstall(args []string) {
 	if len(args) < 1 {
-		output.Error("Usage: gogitup install <owner/repo>")
+		output.Error("Usage: gogitup install <owner/repo|package-path>")
 		os.Exit(1)
 	}
 
-	ownerRepo := args[0]
-	owner, repo, err := parseOwnerRepo(ownerRepo)
+	target, err := parseInstallTarget(args[0])
 	if err != nil {
 		output.Error(err.Error())
 		os.Exit(1)
@@ -52,13 +51,13 @@ func runInstall(args []string) {
 		errOut:    output.ErrorWriter,
 	}
 
-	binaryName, err := runInstallApp(owner, repo, deps)
+	binaryName, err := runInstallTarget(target, deps)
 	if err != nil {
 		output.Error(err.Error())
 		os.Exit(1)
 	}
 
-	if err := config.AddApp(cfg, binaryName); err != nil {
+	if err := config.AddAppWithInstallPath(cfg, binaryName, target.installPath()); err != nil {
 		output.Warn(err.Error())
 		return
 	}
@@ -69,6 +68,68 @@ func runInstall(args []string) {
 	}
 
 	output.Success(fmt.Sprintf("Added '%s' to tracking", binaryName))
+}
+
+type installTarget struct {
+	packagePath string
+	owner       string
+	repo        string
+}
+
+func (t installTarget) installPath() string {
+	if t.owner == "" {
+		return t.packagePath
+	}
+	if t.packagePath == t.modulePath() {
+		return ""
+	}
+	return t.packagePath
+}
+
+func (t installTarget) modulePath() string {
+	if t.owner == "" {
+		return t.packagePath
+	}
+	return "github.com/" + t.owner + "/" + t.repo
+}
+
+// parseInstallTarget accepts the existing owner/repo forms and full Go package paths.
+func parseInstallTarget(value string) (installTarget, error) {
+	if packagePath, version, found := strings.Cut(value, "@"); found {
+		if version != "latest" || strings.Contains(packagePath, "@") {
+			return installTarget{}, fmt.Errorf("invalid install target: %q (only @latest is supported)", value)
+		}
+		value = packagePath
+	}
+	if value == "" || strings.HasPrefix(value, "/") || strings.HasSuffix(value, "/") {
+		return installTarget{}, fmt.Errorf("invalid install target: %q", value)
+	}
+
+	if strings.HasPrefix(value, "github.com/") {
+		parts := strings.Split(value, "/")
+		if len(parts) >= 3 && parts[1] != "" && parts[2] != "" {
+			return installTarget{packagePath: value, owner: parts[1], repo: parts[2]}, nil
+		}
+		return installTarget{}, fmt.Errorf("invalid install target: %q", value)
+	}
+
+	parts := strings.Split(value, "/")
+	if len(parts) == 2 && !strings.Contains(parts[0], ".") {
+		owner, repo, err := parseOwnerRepo(value)
+		if err != nil {
+			return installTarget{}, err
+		}
+		return installTarget{
+			packagePath: "github.com/" + owner + "/" + repo,
+			owner:       owner,
+			repo:        repo,
+		}, nil
+	}
+	if len(parts) < 2 || !strings.Contains(parts[0], ".") {
+		return installTarget{}, fmt.Errorf("invalid install target: %q (expected owner/repo or a full Go package path)", value)
+	}
+
+	return installTarget{packagePath: value}, nil
 }
 
 // parseOwnerRepo parses an owner/repo string (with or without the "github.com/" prefix)
@@ -88,24 +149,35 @@ func parseOwnerRepo(ownerRepo string) (owner, repo string, err error) {
 // runInstallApp fetches the latest release for owner/repo, runs go install, and verifies
 // the resulting binary is available on PATH. It returns the binary name on success.
 func runInstallApp(owner, repo string, deps installDependencies) (string, error) {
-	latest, err := deps.ghClient.GetLatestRelease(owner, repo)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch latest release for %s/%s: %w", owner, repo, err)
+	return runInstallTarget(installTarget{
+		packagePath: "github.com/" + owner + "/" + repo,
+		owner:       owner,
+		repo:        repo,
+	}, deps)
+}
+
+// runInstallTarget installs from a GitHub release or resolves a non-GitHub package at latest.
+func runInstallTarget(target installTarget, deps installDependencies) (string, error) {
+	version := "latest"
+	if target.owner != "" {
+		var err error
+		version, err = deps.ghClient.GetLatestRelease(target.owner, target.repo)
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch latest release for %s/%s: %w", target.owner, target.repo, err)
+		}
 	}
 
-	modulePath := "github.com/" + owner + "/" + repo
+	deps.out.StartProgress(fmt.Sprintf("Installing %s@%s", target.packagePath, version))
 
-	deps.out.StartProgress(fmt.Sprintf("Installing %s@%s", modulePath, latest))
-
-	_, err = deps.installer.Install(modulePath, latest)
+	_, err := deps.installer.Install(target.packagePath, version)
 	if err != nil {
 		return "", fmt.Errorf("installation failed: %w", err)
 	}
 
-	deps.out.Success(fmt.Sprintf("Installed %s@%s", modulePath, latest))
+	deps.out.Success(fmt.Sprintf("Installed %s@%s", target.packagePath, version))
 
-	// The binary is conventionally named after the repository.
-	binaryName := repo
+	parts := strings.Split(target.packagePath, "/")
+	binaryName := parts[len(parts)-1]
 	if _, err := deps.runner.GetInfo(binaryName); err != nil {
 		return "", fmt.Errorf("binary %q not found on PATH after install; use 'gogitup add <name>' to track it manually", binaryName)
 	}

@@ -10,7 +10,8 @@ import (
 
 // App represents a configured application.
 type App struct {
-	Name string `yaml:"name"`
+	Name        string `yaml:"name"`
+	InstallPath string `yaml:"install_path,omitempty"`
 }
 
 // Config represents the gogitup configuration file.
@@ -59,10 +60,16 @@ func Save(path string, cfg *Config) error {
 
 // AddApp adds an app to the config. Returns an error if the app already exists.
 func AddApp(cfg *Config, name string) error {
+	return AddAppWithInstallPath(cfg, name, "")
+}
+
+// AddAppWithInstallPath adds an app with an optional Go package path used for
+// future upgrades. Returns an error if the app already exists.
+func AddAppWithInstallPath(cfg *Config, name, installPath string) error {
 	if HasApp(cfg, name) {
 		return errors.New("app already exists: " + name)
 	}
-	cfg.Apps = append(cfg.Apps, App{Name: name})
+	cfg.Apps = append(cfg.Apps, App{Name: name, InstallPath: installPath})
 	return nil
 }
 

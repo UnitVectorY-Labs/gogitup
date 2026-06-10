@@ -53,7 +53,7 @@ If neither source provides a token, requests are made without authentication.
 
 ## GOPROXY
 
-When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when running `go install` (during both `install` and `upgrade`). This is useful in environments that require a custom module proxy.
+When `goproxy` is set, **gogitup** passes the configured value as the `GOPROXY` environment variable when checking non-GitHub module updates with `go list -m -u` and when running `go install` (during both `install` and `upgrade`). This is useful in environments that require a custom module proxy.
 
 {: .note }
 If `goproxy` is not set or is empty, the `GOPROXY` value is inherited from the current process environment (the default Go behavior).
@@ -67,10 +67,10 @@ If `cgo_enabled` is not set, the `CGO_ENABLED` value is inherited from the curre
 
 ## Cache File
 
-The cache file is located at `~/.gogitup.cache` and uses YAML format. It stores the latest version information retrieved from GitHub so that repeated checks do not require additional API calls.
+The cache file is located at `~/.gogitup.cache` and uses YAML format. It stores version-check results so repeated checks do not require additional GitHub or Go module proxy requests. Each result is associated with the installed version that was checked.
 
 {: .important }
-Cache entries expire after **24 hours**. After expiry the next `check` or `upgrade` will re-fetch the latest release from GitHub. A check can be forced with `--force` to bypass the cache, but the purpose of the cache is to avoid unnecessary API calls to GitHub.
+Cache entries expire after **24 hours**. After expiry, the next `check` refreshes the result from GitHub or the configured Go module proxy. The `upgrade` command always performs a fresh lookup. A check can be forced with `--force` to bypass the cache.
 
 ### Example
 
@@ -78,5 +78,6 @@ Cache entries expire after **24 hours**. After expiry the next `check` or `upgra
 entries:
   ghorgsync:
     latest_version: v0.10.0
+    installed_version: v0.9.0
     checked_at: 2025-01-15T10:30:00Z
 ```

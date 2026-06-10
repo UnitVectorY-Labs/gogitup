@@ -10,6 +10,7 @@ import (
 	"github.com/UnitVectorY-Labs/gogitup/internal/cache"
 	"github.com/UnitVectorY-Labs/gogitup/internal/config"
 	"github.com/UnitVectorY-Labs/gogitup/internal/github"
+	"github.com/UnitVectorY-Labs/gogitup/internal/gomodule"
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
 	"github.com/UnitVectorY-Labs/gogitup/internal/installer"
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
@@ -22,9 +23,15 @@ type upgradeOptions struct {
 type upgradeDependencies struct {
 	runner    goversion.Runner
 	ghClient  github.Client
+	resolver  gomodule.Resolver
 	installer installer.Installer
 	out       *output.Writer
 	errOut    *output.Writer
+}
+
+type updateResult struct {
+	latestVersion   string
+	updateAvailable bool
 }
 
 func parseUpgradeOptions(args []string, stderr io.Writer) (upgradeOptions, error) {
@@ -73,6 +80,7 @@ func runUpgrade(args []string) {
 	deps := upgradeDependencies{
 		runner:    runner,
 		ghClient:  ghClient,
+		resolver:  gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
 		installer: inst,
 		out:       output.DefaultWriter,
 		errOut:    output.ErrorWriter,
@@ -100,41 +108,67 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 			continue
 		}
 
-		owner, repo, err := goversion.ParseGitHubRepo(info.Path)
+		// Always perform a fresh update check (ignore cache).
+		result, err := checkForUpdate(info.Path, info.Version, deps.ghClient, deps.resolver)
 		if err != nil {
-			deps.out.Warn(fmt.Sprintf("Could not parse GitHub repo for '%s': %v", app.Name, err))
+			deps.out.Warn(fmt.Sprintf("Could not fetch latest version for '%s': %v", app.Name, err))
 			continue
 		}
 
-		// Always re-check GitHub for latest version (ignore cache)
-		latest, err := deps.ghClient.GetLatestRelease(owner, repo)
-		if err != nil {
-			deps.out.Warn(fmt.Sprintf("Could not fetch latest release for '%s': %v", app.Name, err))
-			continue
-		}
+		cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
 
-		cache.Set(c, app.Name, latest)
-
-		if info.Version == latest {
+		if !result.updateAvailable {
 			if opts.Verbose {
 				deps.out.Info(upgradeUpToDateMessage(app.Name, info.Version))
 			}
 			continue
 		}
 
-		deps.out.StartProgress(upgradeProgressMessage(app.Name, info.Version, latest))
+		deps.out.StartProgress(upgradeProgressMessage(app.Name, info.Version, result.latestVersion))
 
-		_, err = deps.installer.Install(info.Path, latest)
+		installPath := app.InstallPath
+		if installPath == "" {
+			installPath = info.PackagePath
+		}
+		if installPath == "" {
+			installPath = info.Path
+		}
+		_, err = deps.installer.Install(installPath, result.latestVersion)
 		if err != nil {
 			deps.errOut.Error(fmt.Sprintf("Failed to upgrade '%s': %v", app.Name, err))
 			continue
 		}
 
-		deps.out.Success(upgradeSuccessMessage(app.Name, latest))
+		deps.out.Success(upgradeSuccessMessage(app.Name, result.latestVersion))
 		updated++
 	}
 
 	return updated
+}
+
+func checkForUpdate(modulePath, installedVersion string, ghClient github.Client, resolver gomodule.Resolver) (updateResult, error) {
+	if goversion.IsGitHubRepo(modulePath) {
+		owner, repo, err := goversion.ParseGitHubRepo(modulePath)
+		if err != nil {
+			return updateResult{}, err
+		}
+		latest, err := ghClient.GetLatestRelease(owner, repo)
+		if err != nil {
+			return updateResult{}, err
+		}
+		return updateResult{
+			latestVersion:   latest,
+			updateAvailable: installedVersion != latest,
+		}, nil
+	}
+	result, err := resolver.Check(modulePath, installedVersion)
+	if err != nil {
+		return updateResult{}, err
+	}
+	return updateResult{
+		latestVersion:   result.LatestVersion,
+		updateAvailable: result.UpdateAvailable,
+	}, nil
 }
 
 func upgradeUpToDateMessage(name, version string) string {

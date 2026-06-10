@@ -24,11 +24,6 @@ func runAdd(args []string) {
 		os.Exit(1)
 	}
 
-	if !goversion.IsGitHubRepo(info.Path) {
-		output.Error(fmt.Sprintf("Module path '%s' is not a GitHub repository", info.Path))
-		os.Exit(1)
-	}
-
 	cfgPath := config.DefaultPath()
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -36,7 +31,11 @@ func runAdd(args []string) {
 		os.Exit(1)
 	}
 
-	if err := config.AddApp(cfg, name); err != nil {
+	installPath := ""
+	if !goversion.IsGitHubRepo(info.Path) {
+		installPath = info.PackagePath
+	}
+	if err := config.AddAppWithInstallPath(cfg, name, installPath); err != nil {
 		output.Warn(err.Error())
 		os.Exit(1)
 	}
