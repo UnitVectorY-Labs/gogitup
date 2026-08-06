@@ -117,6 +117,12 @@ Stop tracking a binary without uninstalling it:
 gogitup remove ghorgsync
 ```
 
+Stop tracking a binary and delete its executable from `PATH`:
+
+```bash
+gogitup remove ghorgsync --delete
+```
+
 ## Enabling GitHub Authentication
 
 Edit `~/.gogitup` and set `github_auth` to `true` to use authenticated API requests and avoid rate limits:
