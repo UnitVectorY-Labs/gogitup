@@ -75,15 +75,18 @@ If the installed binary name differs from the repository name (uncommon), the in
 
 ## `remove`
 
-Removes a binary from tracking. The binary itself is not uninstalled, **gogitup** just stops tracking it for updates when you run `check` or `upgrade`.
+Removes a binary from tracking. By default, the binary itself is not uninstalled: **gogitup** just stops tracking it for updates when you run `check` or `upgrade`.
+
+Pass `--delete` to also delete the executable found for the registered name on your `PATH`. If the executable cannot be found or deleted, the binary remains registered.
 
 ```bash
-gogitup remove <name>
+gogitup remove <name> [--delete]
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `<name>` | Yes | None | Registered binary name to remove |
+| `--delete` | No | `false` | Also delete the executable found on `PATH` |
 
 ---
 
