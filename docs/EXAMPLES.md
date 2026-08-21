@@ -32,7 +32,7 @@ gogitup install golang.org/x/vuln/cmd/govulncheck
 
 ## Listing Tracked Tools
 
-View all registered binaries and their installed versions:
+View all registered binaries, their installed versions, and the Go versions used to build them:
 
 ```bash
 gogitup list
@@ -41,11 +41,14 @@ gogitup list
 ```
 Registered Binaries
 
-  Name        Module Path                             Installed Version
-  ──────────  ──────────────────────────────────────  ─────────────────
-  bulkfilepr  github.com/UnitVectorY-Labs/bulkfilepr  v0.2.2           
-  ghorgsync   github.com/UnitVectorY-Labs/ghorgsync   v0.1.0           
+                                                      Installed  Go
+  Name        Module Path                             Version    Version
+  ──────────  ──────────────────────────────────────  ─────────  ───────
+  bulkfilepr  github.com/UnitVectorY-Labs/bulkfilepr  v0.2.2     1.25.7
+  ghorgsync   github.com/UnitVectorY-Labs/ghorgsync   v0.1.0     1.25.7
 ```
+
+Go build versions matching the active locally installed toolchain are shown in green; versions that differ are shown in red.
 
 ## Checking for Updates
 
@@ -82,6 +85,26 @@ gogitup upgrade --verbose
 ℹ 'ghorgsync' is already up to date (v0.1.0)
 
 ✓ Upgraded 1 binary(ies).
+```
+
+To also rebuild otherwise-current binaries that were compiled with an older Go version:
+
+```bash
+gogitup upgrade --go-version
+```
+
+For example, if `tool` v1.2.3 was built with Go 1.25.6 and the active `go` command is Go 1.25.7, **gogitup** reinstalls `tool@v1.2.3` directly. The existing binary is overwritten; it does not need to be uninstalled first.
+
+Preview upgrades without installing anything or changing the cache:
+
+```bash
+gogitup upgrade --dry-run
+```
+
+Include Go-version rebuilds in the preview:
+
+```bash
+gogitup upgrade --dry-run --go-version
 ```
 
 ## Using JSON Output for Scripting
