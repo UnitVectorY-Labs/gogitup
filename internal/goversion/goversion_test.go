@@ -195,3 +195,38 @@ func TestMockRunnerError(t *testing.T) {
 		t.Fatalf("expected error from mock runner")
 	}
 }
+
+func TestIsToolchainNewer(t *testing.T) {
+	tests := []struct {
+		name      string
+		active    string
+		builtWith string
+		want      bool
+	}{
+		{name: "newer patch", active: "go1.25.7", builtWith: "go1.25.6", want: true},
+		{name: "newer minor", active: "go1.26.0", builtWith: "go1.25.7", want: true},
+		{name: "same", active: "go1.25.7", builtWith: "go1.25.7"},
+		{name: "older", active: "go1.24.0", builtWith: "go1.25.7"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := IsToolchainNewer(tt.active, tt.builtWith)
+			if err != nil {
+				t.Fatalf("IsToolchainNewer returned error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("IsToolchainNewer(%q, %q) = %v, want %v", tt.active, tt.builtWith, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsToolchainNewerRejectsInvalidVersions(t *testing.T) {
+	if _, err := IsToolchainNewer("1.25.7", "go1.25.6"); err == nil {
+		t.Fatal("expected invalid active version error")
+	}
+	if _, err := IsToolchainNewer("go1.25.7", "unknown"); err == nil {
+		t.Fatal("expected invalid embedded version error")
+	}
+}

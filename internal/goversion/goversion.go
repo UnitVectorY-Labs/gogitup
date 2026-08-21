@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	goversion "go/version"
 	"io"
 	"os/exec"
 	"strings"
@@ -25,6 +26,33 @@ type Runner interface {
 
 // DefaultRunner implements Runner by executing the go version command.
 type DefaultRunner struct{}
+
+// CurrentToolchainVersion returns the version used by the active go command.
+func CurrentToolchainVersion() (string, error) {
+	cmd := exec.Command("go", "env", "GOVERSION")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get active Go toolchain version: %w", err)
+	}
+
+	version := strings.TrimSpace(string(output))
+	if !goversion.IsValid(version) {
+		return "", fmt.Errorf("active Go toolchain returned invalid version %q", version)
+	}
+	return version, nil
+}
+
+// IsToolchainNewer reports whether the active toolchain version is newer than
+// the version embedded in a compiled binary.
+func IsToolchainNewer(active, builtWith string) (bool, error) {
+	if !goversion.IsValid(active) {
+		return false, fmt.Errorf("invalid active Go version %q", active)
+	}
+	if !goversion.IsValid(builtWith) {
+		return false, fmt.Errorf("invalid embedded Go version %q", builtWith)
+	}
+	return goversion.Compare(active, builtWith) > 0, nil
+}
 
 // versionOutput represents a single entry in the go version -m -json output.
 type versionOutput struct {

@@ -17,7 +17,9 @@ import (
 )
 
 type upgradeOptions struct {
-	Verbose bool
+	Verbose            bool
+	RebuildWithNewerGo bool
+	DryRun             bool
 }
 
 type upgradeDependencies struct {
@@ -27,6 +29,7 @@ type upgradeDependencies struct {
 	installer installer.Installer
 	out       *output.Writer
 	errOut    *output.Writer
+	currentGo func() (string, error)
 }
 
 type updateResult struct {
@@ -39,11 +42,13 @@ func parseUpgradeOptions(args []string, stderr io.Writer) (upgradeOptions, error
 	fs.SetOutput(stderr)
 
 	verboseFlag := fs.Bool("verbose", false, "Show binaries that are already up to date")
+	rebuildFlag := fs.Bool("go-version", false, "Rebuild binaries compiled with an older Go toolchain")
+	dryRunFlag := fs.Bool("dry-run", false, "List updates without installing them")
 	if err := fs.Parse(args); err != nil {
 		return upgradeOptions{}, err
 	}
 
-	return upgradeOptions{Verbose: *verboseFlag}, nil
+	return upgradeOptions{Verbose: *verboseFlag, RebuildWithNewerGo: *rebuildFlag, DryRun: *dryRunFlag}, nil
 }
 
 func runUpgrade(args []string) {
@@ -84,13 +89,24 @@ func runUpgrade(args []string) {
 		installer: inst,
 		out:       output.DefaultWriter,
 		errOut:    output.ErrorWriter,
+		currentGo: goversion.CurrentToolchainVersion,
 	}
 	updated := runUpgradeApps(cfg, c, opts, deps)
 
-	// Save updated cache
-	_ = cache.Save(cachePath, c)
+	if !opts.DryRun {
+		// Save updated cache only when performing the requested updates.
+		_ = cache.Save(cachePath, c)
+	}
 
 	fmt.Println()
+	if opts.DryRun {
+		if updated == 0 {
+			deps.out.Info("Dry run: no binaries would be updated.")
+		} else {
+			deps.out.Info(fmt.Sprintf("Dry run: %d binary(ies) would be updated.", updated))
+		}
+		return
+	}
 	if updated == 0 {
 		deps.out.Info("All binaries are up to date.")
 	} else {
@@ -100,6 +116,18 @@ func runUpgrade(args []string) {
 
 func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, deps upgradeDependencies) int {
 	updated := 0
+	activeGoVersion := ""
+	if opts.RebuildWithNewerGo {
+		if deps.currentGo == nil {
+			deps.currentGo = goversion.CurrentToolchainVersion
+		}
+		var err error
+		activeGoVersion, err = deps.currentGo()
+		if err != nil {
+			deps.out.Warn(fmt.Sprintf("Could not determine active Go toolchain version: %v", err))
+			activeGoVersion = ""
+		}
+	}
 
 	for _, app := range cfg.Apps {
 		info, err := deps.runner.GetInfo(app.Name)
@@ -108,23 +136,50 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 			continue
 		}
 
+		rebuild := false
+		if activeGoVersion != "" {
+			rebuild, err = goversion.IsToolchainNewer(activeGoVersion, info.GoVersion)
+			if err != nil {
+				deps.out.Warn(fmt.Sprintf("Could not compare Go toolchain version for '%s': %v", app.Name, err))
+			}
+		}
+
 		// Always perform a fresh update check (ignore cache).
 		result, err := checkForUpdate(info.Path, info.Version, deps.ghClient, deps.resolver)
 		if err != nil {
 			deps.out.Warn(fmt.Sprintf("Could not fetch latest version for '%s': %v", app.Name, err))
-			continue
+			if !rebuild {
+				continue
+			}
+			result = updateResult{latestVersion: info.Version}
+		} else if !opts.DryRun {
+			cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
 		}
 
-		cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
-
-		if !result.updateAvailable {
+		if !result.updateAvailable && !rebuild {
 			if opts.Verbose {
 				deps.out.Info(upgradeUpToDateMessage(app.Name, info.Version))
 			}
 			continue
 		}
 
-		deps.out.StartProgress(upgradeProgressMessage(app.Name, info.Version, result.latestVersion))
+		installVersion := result.latestVersion
+		if rebuild && !result.updateAvailable {
+			installVersion = info.Version
+			if opts.DryRun {
+				deps.out.Info(dryRunRebuildMessage(app.Name, installVersion, info.GoVersion, activeGoVersion))
+				updated++
+				continue
+			}
+			deps.out.StartProgress(rebuildProgressMessage(app.Name, info.Version, info.GoVersion, activeGoVersion))
+		} else {
+			if opts.DryRun {
+				deps.out.Info(dryRunUpgradeMessage(app.Name, info.Version, result.latestVersion))
+				updated++
+				continue
+			}
+			deps.out.StartProgress(upgradeProgressMessage(app.Name, info.Version, result.latestVersion))
+		}
 
 		installPath := app.InstallPath
 		if installPath == "" {
@@ -133,13 +188,17 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		if installPath == "" {
 			installPath = info.Path
 		}
-		_, err = deps.installer.Install(installPath, result.latestVersion)
+		_, err = deps.installer.Install(installPath, installVersion)
 		if err != nil {
-			deps.errOut.Error(fmt.Sprintf("Failed to upgrade '%s': %v", app.Name, err))
+			deps.errOut.Error(fmt.Sprintf("Failed to update '%s': %v", app.Name, err))
 			continue
 		}
 
-		deps.out.Success(upgradeSuccessMessage(app.Name, result.latestVersion))
+		if rebuild && !result.updateAvailable {
+			deps.out.Success(rebuildSuccessMessage(app.Name, installVersion, activeGoVersion))
+		} else {
+			deps.out.Success(upgradeSuccessMessage(app.Name, installVersion))
+		}
 		updated++
 	}
 
@@ -181,6 +240,22 @@ func upgradeProgressMessage(name, currentVersion, latestVersion string) string {
 
 func upgradeSuccessMessage(name, version string) string {
 	return fmt.Sprintf("Upgraded '%s' to %s", name, installedVersion(version))
+}
+
+func rebuildProgressMessage(name, version, oldGoVersion, newGoVersion string) string {
+	return fmt.Sprintf("Rebuilding '%s' %s with %s (was %s)", name, installedVersion(version), newGoVersion, oldGoVersion)
+}
+
+func rebuildSuccessMessage(name, version, goVersion string) string {
+	return fmt.Sprintf("Rebuilt '%s' %s with %s", name, installedVersion(version), goVersion)
+}
+
+func dryRunUpgradeMessage(name, currentVersion, latestVersion string) string {
+	return fmt.Sprintf("Would upgrade '%s' from %s to %s", name, installedVersion(currentVersion), latestVersionLabel(latestVersion))
+}
+
+func dryRunRebuildMessage(name, version, oldGoVersion, newGoVersion string) string {
+	return fmt.Sprintf("Would rebuild '%s' %s with %s (currently %s)", name, installedVersion(version), newGoVersion, oldGoVersion)
 }
 
 func installedVersion(version string) string {
