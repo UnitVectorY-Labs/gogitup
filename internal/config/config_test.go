@@ -142,6 +142,7 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 		Apps: []App{
 			{Name: "myapp"},
 			{Name: "govulncheck", InstallPath: "golang.org/x/vuln/cmd/govulncheck"},
+			{Name: "private-tool", Private: true},
 		},
 		GitHubAuth: true,
 		GOPROXY:    "https://proxy.example.com,direct",
@@ -166,6 +167,9 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 		}
 		if app.InstallPath != original.Apps[i].InstallPath {
 			t.Fatalf("expected install path %q, got %q", original.Apps[i].InstallPath, app.InstallPath)
+		}
+		if app.Private != original.Apps[i].Private {
+			t.Fatalf("expected private %v, got %v", original.Apps[i].Private, app.Private)
 		}
 	}
 	if loaded.GitHubAuth != original.GitHubAuth {
@@ -198,6 +202,30 @@ func TestAddApp(t *testing.T) {
 	// Adding duplicate should return error
 	if err := AddApp(cfg, "newapp"); err == nil {
 		t.Fatal("expected error for duplicate app, got nil")
+	}
+}
+
+func TestAddPrivateApp(t *testing.T) {
+	cfg := &Config{}
+	if err := AddAppWithInstallOptions(cfg, "private-tool", "github.com/acme/tool/cmd/tool", true); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(cfg.Apps) != 1 {
+		t.Fatalf("expected one app, got %d", len(cfg.Apps))
+	}
+	app := cfg.Apps[0]
+	if !app.Private || app.InstallPath != "github.com/acme/tool/cmd/tool" {
+		t.Fatalf("unexpected app: %+v", app)
+	}
+	if !HasPrivateApps(cfg) {
+		t.Fatal("expected HasPrivateApps to report true")
+	}
+}
+
+func TestHasPrivateAppsFalse(t *testing.T) {
+	cfg := &Config{Apps: []App{{Name: "public-tool"}}}
+	if HasPrivateApps(cfg) {
+		t.Fatal("expected HasPrivateApps to report false")
 	}
 }
 

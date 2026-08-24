@@ -26,6 +26,8 @@ The configuration file is located at `~/.gogitup` and uses YAML format. It is cr
 apps:
   - name: ghorgsync
   - name: bulkfilepr
+  - name: private-tool
+    private: true
 github_auth: false
 goproxy: "https://proxy.golang.org"
 ```
@@ -36,20 +38,24 @@ goproxy: "https://proxy.golang.org"
 |-----------|------|---------|-------------|
 | `apps` | list | `[]` | List of registered application binary names |
 | `apps[].name` | string | - | Binary name of the registered application |
+| `apps[].install_path` | string | `""` | Optional Go command package path used for upgrades |
+| `apps[].private` | boolean | `false` | Treat the application's GitHub repository as private during checks and upgrades |
 | `github_auth` | boolean | `false` | Enable authenticated GitHub API requests |
 | `goproxy` | string | `""` | Override the `GOPROXY` environment variable used when running `go install` |
 | `cgo_enabled` | boolean | (inherited) | Override the `CGO_ENABLED` environment variable used when running `go install` |
 
 ## GitHub Authentication
 
-When `github_auth` is set to `true`, **gogitup** sends authenticated requests to the GitHub API. This is useful for avoiding rate limits. By default, **gogitup** does not authenticate and is subject to GitHub's unauthenticated rate limits.
+When `github_auth` is set to `true`, **gogitup** sends authenticated requests to the GitHub API. This is useful for avoiding rate limits. By default, public repositories use unauthenticated requests and are subject to GitHub's unauthenticated rate limits.
+
+Applications installed with `gogitup install --private` are stored with `private: true`. Private applications always use authenticated GitHub requests during `check` and `upgrade`, regardless of the global `github_auth` value. Their `go install` processes also receive repository-scoped private-module and Git authentication settings. These settings apply only to the child process; **gogitup** does not modify persistent Go or Git configuration.
 
 When enabled, the token is resolved in the following order:
 
 1. The `GITHUB_TOKEN` environment variable, if set.
 2. The output of `gh auth token` (GitHub CLI), as a fallback.
 
-If neither source provides a token, requests are made without authentication.
+If neither source provides a token, public repository requests are made without authentication. Private installs, checks, and upgrades instead fail with an authentication error.
 
 ## GOPROXY
 

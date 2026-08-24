@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"encoding/base64"
 	"fmt"
 	"slices"
 	"strings"
@@ -13,7 +14,7 @@ type mockInstaller struct {
 	err    error
 }
 
-func (m *mockInstaller) Install(modulePath string, version string) (string, error) {
+func (m *mockInstaller) Install(modulePath string, version string, options ...InstallOptions) (string, error) {
 	return m.output, m.err
 }
 
@@ -202,4 +203,87 @@ func TestNewDefaultInstallerWithOptionsNilCGOEnabled(t *testing.T) {
 		return
 	}
 	t.Fatal("expected inherited CGO_ENABLED=0 not found in command environment")
+}
+
+func TestConfigurePrivateEnv(t *testing.T) {
+	const token = "secret-token"
+	env, err := configurePrivateEnv(
+		[]string{
+			"PATH=/usr/bin",
+			"GIT_CONFIG_COUNT=1",
+			"GIT_CONFIG_KEY_0=credential.helper",
+			"GIT_CONFIG_VALUE_0=osxkeychain",
+		},
+		map[string]string{
+			"GOPRIVATE": "github.com/acme/*",
+			"GONOPROXY": "github.com/acme/*",
+			"GONOSUMDB": "github.com/acme/*",
+		},
+		InstallOptions{
+			PrivateModule: "github.com/JaredHatfield/hello-go-release",
+			GitHubToken:   token,
+		},
+	)
+	if err != nil {
+		t.Fatalf("configurePrivateEnv returned error: %v", err)
+	}
+
+	wantPrivate := "github.com/acme/*,github.com/JaredHatfield/hello-go-release"
+	for _, name := range []string{"GOPRIVATE", "GONOPROXY", "GONOSUMDB"} {
+		value, ok := getEnv(env, name)
+		if !ok || value != wantPrivate {
+			t.Fatalf("%s = %q, want %q", name, value, wantPrivate)
+		}
+	}
+	if value, _ := getEnv(env, "GIT_CONFIG_COUNT"); value != "3" {
+		t.Fatalf("GIT_CONFIG_COUNT = %q, want 3", value)
+	}
+	if value, _ := getEnv(env, "GIT_CONFIG_KEY_1"); value != "http.https://github.com/JaredHatfield/hello-go-release.extraheader" {
+		t.Fatalf("unexpected Git config key: %q", value)
+	}
+	if value, _ := getEnv(env, "GIT_CONFIG_KEY_2"); value != "http.https://github.com/JaredHatfield/hello-go-release.git.extraheader" {
+		t.Fatalf("unexpected .git config key: %q", value)
+	}
+	header, ok := getEnv(env, "GIT_CONFIG_VALUE_1")
+	if !ok || !strings.HasPrefix(header, "AUTHORIZATION: basic ") {
+		t.Fatalf("unexpected Git authorization header: %q", header)
+	}
+	if strings.Contains(header, token) {
+		t.Fatal("authorization header contains the unencoded token")
+	}
+	if value, _ := getEnv(env, "GIT_TERMINAL_PROMPT"); value != "0" {
+		t.Fatalf("GIT_TERMINAL_PROMPT = %q, want 0", value)
+	}
+}
+
+func TestConfigurePrivateEnvRequiresToken(t *testing.T) {
+	_, err := configurePrivateEnv(nil, nil, InstallOptions{PrivateModule: "github.com/acme/tool"})
+	if err == nil || !strings.Contains(err.Error(), "requires authentication") {
+		t.Fatalf("expected authentication error, got %v", err)
+	}
+}
+
+func TestConfigurePrivateEnvDoesNotDuplicateModule(t *testing.T) {
+	const module = "github.com/acme/tool"
+	env, err := configurePrivateEnv(nil, map[string]string{
+		"GOPRIVATE": module,
+		"GONOPROXY": module,
+		"GONOSUMDB": module,
+	}, InstallOptions{PrivateModule: module, GitHubToken: "token"})
+	if err != nil {
+		t.Fatalf("configurePrivateEnv returned error: %v", err)
+	}
+	for _, name := range []string{"GOPRIVATE", "GONOPROXY", "GONOSUMDB"} {
+		if value, _ := getEnv(env, name); value != module {
+			t.Fatalf("%s = %q, want %q", name, value, module)
+		}
+	}
+}
+
+func TestRedactToken(t *testing.T) {
+	encoded := base64.StdEncoding.EncodeToString([]byte("x-access-token:token-secret"))
+	got := redactToken("request failed for token-secret and "+encoded, "token-secret")
+	if got != "request failed for [REDACTED] and [REDACTED]" {
+		t.Fatalf("unexpected redacted value %q", got)
+	}
 }

@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -13,22 +16,50 @@ import (
 )
 
 type installDependencies struct {
-	ghClient  github.Client
-	installer installer.Installer
-	runner    goversion.Runner
-	out       *output.Writer
-	errOut    *output.Writer
+	ghClient    github.Client
+	installer   installer.Installer
+	runner      goversion.Runner
+	private     bool
+	githubToken string
+	out         *output.Writer
+	errOut      *output.Writer
+}
+
+type installOptions struct {
+	Private bool
+	Target  string
+}
+
+func parseInstallOptions(args []string, stderr io.Writer) (installOptions, error) {
+	fs := flag.NewFlagSet("install", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	privateFlag := fs.Bool("private", false, "Install from a private GitHub repository")
+	if err := fs.Parse(args); err != nil {
+		return installOptions{}, err
+	}
+	if fs.NArg() != 1 {
+		return installOptions{}, fmt.Errorf("usage: gogitup install [--private] <owner/repo|package-path>")
+	}
+	return installOptions{Private: *privateFlag, Target: fs.Arg(0)}, nil
 }
 
 func runInstall(args []string) {
-	if len(args) < 1 {
-		output.Error("Usage: gogitup install <owner/repo|package-path>")
-		os.Exit(1)
+	opts, err := parseInstallOptions(args, output.ErrorWriter.Out)
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		output.Error(err.Error())
+		os.Exit(2)
 	}
 
-	target, err := parseInstallTarget(args[0])
+	target, err := parseInstallTarget(opts.Target)
 	if err != nil {
 		output.Error(err.Error())
+		os.Exit(1)
+	}
+	if opts.Private && target.owner == "" {
+		output.Error("--private is only supported for github.com repositories")
 		os.Exit(1)
 	}
 
@@ -39,16 +70,23 @@ func runInstall(args []string) {
 		os.Exit(1)
 	}
 
-	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
+	githubToken := github.ResolveToken(cfg.GitHubAuth || opts.Private)
+	if opts.Private && githubToken == "" {
+		output.Error("Private GitHub installation requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+		os.Exit(1)
+	}
+	ghClient := github.NewDefaultClient(githubToken)
 	inst := installer.NewDefaultInstallerWithOptions(cfg.GOPROXY, cfg.CGOEnabled)
 	runner := &goversion.DefaultRunner{}
 
 	deps := installDependencies{
-		ghClient:  ghClient,
-		installer: inst,
-		runner:    runner,
-		out:       output.DefaultWriter,
-		errOut:    output.ErrorWriter,
+		ghClient:    ghClient,
+		installer:   inst,
+		runner:      runner,
+		private:     opts.Private,
+		githubToken: githubToken,
+		out:         output.DefaultWriter,
+		errOut:      output.ErrorWriter,
 	}
 
 	binaryName, err := runInstallTarget(target, deps)
@@ -57,7 +95,7 @@ func runInstall(args []string) {
 		os.Exit(1)
 	}
 
-	if err := config.AddAppWithInstallPath(cfg, binaryName, target.installPath()); err != nil {
+	if err := config.AddAppWithInstallOptions(cfg, binaryName, target.installPath(), opts.Private); err != nil {
 		output.Warn(err.Error())
 		return
 	}
@@ -169,7 +207,14 @@ func runInstallTarget(target installTarget, deps installDependencies) (string, e
 
 	deps.out.StartProgress(fmt.Sprintf("Installing %s@%s", target.packagePath, version))
 
-	_, err := deps.installer.Install(target.packagePath, version)
+	installerOptions := []installer.InstallOptions(nil)
+	if deps.private {
+		installerOptions = append(installerOptions, installer.InstallOptions{
+			PrivateModule: target.modulePath(),
+			GitHubToken:   deps.githubToken,
+		})
+	}
+	_, err := deps.installer.Install(target.packagePath, version, installerOptions...)
 	if err != nil {
 		return "", fmt.Errorf("installation failed: %w", err)
 	}

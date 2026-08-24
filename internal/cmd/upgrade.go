@@ -23,13 +23,14 @@ type upgradeOptions struct {
 }
 
 type upgradeDependencies struct {
-	runner    goversion.Runner
-	ghClient  github.Client
-	resolver  gomodule.Resolver
-	installer installer.Installer
-	out       *output.Writer
-	errOut    *output.Writer
-	currentGo func() (string, error)
+	runner      goversion.Runner
+	ghClient    github.Client
+	resolver    gomodule.Resolver
+	installer   installer.Installer
+	githubToken string
+	out         *output.Writer
+	errOut      *output.Writer
+	currentGo   func() (string, error)
 }
 
 type updateResult struct {
@@ -80,16 +81,22 @@ func runUpgrade(args []string) {
 	}
 
 	runner := &goversion.DefaultRunner{}
-	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
+	githubToken := github.ResolveToken(cfg.GitHubAuth || config.HasPrivateApps(cfg))
+	if config.HasPrivateApps(cfg) && githubToken == "" {
+		output.Error("Upgrading private GitHub repositories requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+		os.Exit(1)
+	}
+	ghClient := github.NewDefaultClient(githubToken)
 	inst := installer.NewDefaultInstallerWithOptions(cfg.GOPROXY, cfg.CGOEnabled)
 	deps := upgradeDependencies{
-		runner:    runner,
-		ghClient:  ghClient,
-		resolver:  gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
-		installer: inst,
-		out:       output.DefaultWriter,
-		errOut:    output.ErrorWriter,
-		currentGo: goversion.CurrentToolchainVersion,
+		runner:      runner,
+		ghClient:    ghClient,
+		resolver:    gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
+		installer:   inst,
+		githubToken: githubToken,
+		out:         output.DefaultWriter,
+		errOut:      output.ErrorWriter,
+		currentGo:   goversion.CurrentToolchainVersion,
 	}
 	updated := runUpgradeApps(cfg, c, opts, deps)
 
@@ -188,7 +195,14 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		if installPath == "" {
 			installPath = info.Path
 		}
-		_, err = deps.installer.Install(installPath, installVersion)
+		installerOptions := []installer.InstallOptions(nil)
+		if app.Private {
+			installerOptions = append(installerOptions, installer.InstallOptions{
+				PrivateModule: info.Path,
+				GitHubToken:   deps.githubToken,
+			})
+		}
+		_, err = deps.installer.Install(installPath, installVersion, installerOptions...)
 		if err != nil {
 			deps.errOut.Error(fmt.Sprintf("Failed to update '%s': %v", app.Name, err))
 			continue

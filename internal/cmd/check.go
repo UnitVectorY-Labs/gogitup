@@ -47,7 +47,12 @@ func runCheck(args []string) {
 	}
 
 	runner := &goversion.DefaultRunner{}
-	ghClient := github.NewDefaultClient(github.ResolveToken(cfg.GitHubAuth))
+	githubToken := github.ResolveToken(cfg.GitHubAuth || config.HasPrivateApps(cfg))
+	if config.HasPrivateApps(cfg) && githubToken == "" {
+		output.Error("Checking private GitHub repositories requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+		os.Exit(1)
+	}
+	ghClient := github.NewDefaultClient(githubToken)
 	moduleResolver := gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY)
 
 	entries := make([]checkEntry, 0, len(cfg.Apps))

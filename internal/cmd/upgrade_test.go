@@ -10,6 +10,7 @@ import (
 	"github.com/UnitVectorY-Labs/gogitup/internal/config"
 	"github.com/UnitVectorY-Labs/gogitup/internal/gomodule"
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
+	"github.com/UnitVectorY-Labs/gogitup/internal/installer"
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
 )
 
@@ -53,6 +54,7 @@ func (s *stubGitHubClient) GetLatestRelease(owner, repo string) (string, error) 
 type installCall struct {
 	modulePath string
 	version    string
+	options    []installer.InstallOptions
 }
 
 type stubInstaller struct {
@@ -84,8 +86,8 @@ func (s *stubModuleResolver) Check(modulePath, installedVersion string) (gomodul
 	return result, nil
 }
 
-func (s *stubInstaller) Install(modulePath, version string) (string, error) {
-	s.calls = append(s.calls, installCall{modulePath: modulePath, version: version})
+func (s *stubInstaller) Install(modulePath, version string, options ...installer.InstallOptions) (string, error) {
+	s.calls = append(s.calls, installCall{modulePath: modulePath, version: version, options: options})
 	if s.err != nil {
 		return "", s.err
 	}
@@ -323,6 +325,39 @@ func TestRunUpgradeAppsUsesEmbeddedPackagePathWhenConfigPathIsMissing(t *testing
 	}
 	if installer.calls[0].modulePath != "golang.org/x/vuln/cmd/govulncheck" || installer.calls[0].version != "v1.1.0" {
 		t.Fatalf("unexpected install call: %+v", installer.calls[0])
+	}
+}
+
+func TestRunUpgradeAppsPrivateUsesPrivateInstallOptions(t *testing.T) {
+	const token = "github-token"
+	cfg := &config.Config{Apps: []config.App{{Name: "tool", Private: true}}}
+	c := &cache.Cache{Entries: map[string]cache.Entry{}}
+	installerStub := &stubInstaller{}
+
+	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner: &stubRunner{infos: map[string]*goversion.Info{
+			"tool": {
+				Path:    "github.com/acme/tool",
+				Version: "v1.0.0",
+			},
+		}},
+		ghClient:    &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.1.0"}},
+		installer:   installerStub,
+		githubToken: token,
+		out:         &output.Writer{Out: &bytes.Buffer{}},
+		errOut:      &output.Writer{Out: &bytes.Buffer{}},
+	})
+
+	if updated != 1 || len(installerStub.calls) != 1 {
+		t.Fatalf("expected one private upgrade, got updated=%d calls=%+v", updated, installerStub.calls)
+	}
+	call := installerStub.calls[0]
+	if len(call.options) != 1 {
+		t.Fatalf("expected private install options, got %+v", call.options)
+	}
+	want := installer.InstallOptions{PrivateModule: "github.com/acme/tool", GitHubToken: token}
+	if call.options[0] != want {
+		t.Fatalf("install options = %+v, want %+v", call.options[0], want)
 	}
 }
 

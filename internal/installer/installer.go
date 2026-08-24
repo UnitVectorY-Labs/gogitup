@@ -1,15 +1,24 @@
 package installer
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
+// InstallOptions configures an individual go install invocation.
+type InstallOptions struct {
+	PrivateModule string
+	GitHubToken   string
+}
+
 // Installer defines the interface for installing Go modules.
 type Installer interface {
-	Install(modulePath string, version string) (string, error)
+	Install(modulePath string, version string, options ...InstallOptions) (string, error)
 }
 
 // DefaultInstaller implements Installer using go install.
@@ -69,12 +78,121 @@ func (d *DefaultInstaller) buildInstallCmd(modulePath, version string) *exec.Cmd
 	return cmd
 }
 
-// Install runs "go install {modulePath}@{version}" and returns the combined output.
-func (d *DefaultInstaller) Install(modulePath string, version string) (string, error) {
-	cmd := d.buildInstallCmd(modulePath, version)
+func loadPrivateGoEnv() (map[string]string, error) {
+	cmd := exec.Command("go", "env", "-json", "GOPRIVATE", "GONOPROXY", "GONOSUMDB")
+	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("go install %s@%s failed: %w\n%s", modulePath, version, err, string(out))
+		return nil, fmt.Errorf("go env failed: %w\n%s", err, string(out))
 	}
-	return string(out), nil
+
+	values := make(map[string]string)
+	if err := json.Unmarshal(out, &values); err != nil {
+		return nil, fmt.Errorf("failed to parse go env output: %w", err)
+	}
+	return values, nil
+}
+
+func configurePrivateEnv(env []string, goEnv map[string]string, options InstallOptions) ([]string, error) {
+	if options.PrivateModule == "" {
+		return env, nil
+	}
+	if options.GitHubToken == "" {
+		return nil, fmt.Errorf("private GitHub installation requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+	}
+
+	for _, name := range []string{"GOPRIVATE", "GONOPROXY", "GONOSUMDB"} {
+		env = setEnv(env, name, appendListValue(goEnv[name], options.PrivateModule))
+	}
+
+	count := 0
+	if value, ok := getEnv(env, "GIT_CONFIG_COUNT"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			return nil, fmt.Errorf("invalid GIT_CONFIG_COUNT value %q", value)
+		}
+		count = parsed
+	}
+
+	credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + options.GitHubToken))
+	repositoryURL := "https://" + strings.TrimSuffix(options.PrivateModule, "/")
+	env = setEnv(env, "GIT_CONFIG_COUNT", strconv.Itoa(count+2))
+	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_KEY_%d", count), "http."+repositoryURL+".extraheader")
+	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_VALUE_%d", count), "AUTHORIZATION: basic "+credentials)
+	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_KEY_%d", count+1), "http."+repositoryURL+".git.extraheader")
+	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_VALUE_%d", count+1), "AUTHORIZATION: basic "+credentials)
+	env = setEnv(env, "GIT_TERMINAL_PROMPT", "0")
+	return env, nil
+}
+
+func appendListValue(current, value string) string {
+	for _, item := range strings.Split(current, ",") {
+		if strings.TrimSpace(item) == value {
+			return current
+		}
+	}
+	if current == "" {
+		return value
+	}
+	return current + "," + value
+}
+
+func getEnv(env []string, name string) (string, bool) {
+	prefix := name + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return strings.TrimPrefix(env[i], prefix), true
+		}
+	}
+	return "", false
+}
+
+func setEnv(env []string, name, value string) []string {
+	prefix := name + "="
+	filtered := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return append(filtered, prefix+value)
+}
+
+func redactToken(value, token string) string {
+	if token == "" {
+		return value
+	}
+	value = strings.ReplaceAll(value, token, "[REDACTED]")
+	credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	return strings.ReplaceAll(value, credentials, "[REDACTED]")
+}
+
+// Install runs "go install {modulePath}@{version}" and returns the combined output.
+func (d *DefaultInstaller) Install(modulePath string, version string, optionValues ...InstallOptions) (string, error) {
+	if len(optionValues) > 1 {
+		return "", fmt.Errorf("only one set of install options is supported")
+	}
+	options := InstallOptions{}
+	if len(optionValues) == 1 {
+		options = optionValues[0]
+	}
+
+	cmd := d.buildInstallCmd(modulePath, version)
+	if options.PrivateModule != "" {
+		goEnv, err := loadPrivateGoEnv()
+		if err != nil {
+			return "", err
+		}
+		cmd.Env, err = configurePrivateEnv(cmd.Env, goEnv, options)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
+	output := redactToken(string(out), options.GitHubToken)
+	if err != nil {
+		return output, fmt.Errorf("go install %s@%s failed: %w\n%s", modulePath, version, err, output)
+	}
+	return output, nil
 }
