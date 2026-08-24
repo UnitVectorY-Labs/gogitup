@@ -152,7 +152,7 @@ gogitup remove ghorgsync
 Stop tracking a binary and delete its executable from `PATH`:
 
 ```bash
-gogitup remove ghorgsync --delete
+gogitup remove --delete ghorgsync
 ```
 
 ## Enabling GitHub Authentication
