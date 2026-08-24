@@ -86,7 +86,7 @@ Removes a binary from tracking. By default, the binary itself is not uninstalled
 Pass `--delete` to also delete the executable found for the registered name on your `PATH`. If the executable cannot be found or deleted, the binary remains registered.
 
 ```bash
-gogitup remove <name> [--delete]
+gogitup remove [--delete] <name>
 ```
 
 | Name | Required | Default | Description |

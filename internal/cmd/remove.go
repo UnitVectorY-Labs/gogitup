@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 
@@ -14,8 +16,12 @@ import (
 func runRemove(args []string) {
 	opts, err := parseRemoveArgs(args)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			printRemoveHelp(output.DefaultWriter.Out)
+			return
+		}
 		output.Error(err.Error())
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	cfgPath := config.DefaultPath()
@@ -68,25 +74,23 @@ type removeOptions struct {
 }
 
 func parseRemoveArgs(args []string) (removeOptions, error) {
-	var opts removeOptions
-	for _, arg := range args {
-		switch arg {
-		case "--delete":
-			opts.deleteBinary = true
-		case "":
-			return removeOptions{}, errors.New("Usage: gogitup remove <binary-name> [--delete]")
-		default:
-			if opts.name != "" || arg[0] == '-' {
-				return removeOptions{}, fmt.Errorf("Usage: gogitup remove <binary-name> [--delete]")
-			}
-			opts.name = arg
-		}
+	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	deleteFlag := fs.Bool("delete", false, "Delete the installed binary from PATH")
+	if err := fs.Parse(args); err != nil {
+		return removeOptions{}, err
 	}
+	if fs.NArg() != 1 {
+		return removeOptions{}, errors.New("usage: gogitup remove [--delete] <binary-name>")
+	}
+	return removeOptions{name: fs.Arg(0), deleteBinary: *deleteFlag}, nil
+}
 
-	if opts.name == "" {
-		return removeOptions{}, errors.New("Usage: gogitup remove <binary-name> [--delete]")
-	}
-	return opts, nil
+func printRemoveHelp(w io.Writer) {
+	fmt.Fprintln(w, "Usage: gogitup remove [--delete] <binary-name>")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  --delete  Delete the installed binary from PATH")
 }
 
 // deleteInstalledBinary deletes the executable resolved from PATH for name.

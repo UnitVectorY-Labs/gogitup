@@ -50,7 +50,7 @@ func printHelp() {
 	fmt.Printf("  %sCommands:%s\n", output.Bold, output.Reset)
 	fmt.Printf("    %sadd%s <name>       Register a Go-installed binary\n", output.Cyan, output.Reset)
 	fmt.Printf("    %sinstall%s [--private] <path>  Install a Go binary and register it\n", output.Cyan, output.Reset)
-	fmt.Printf("    %sremove%s <name> [--delete]  Remove a registered binary; optionally delete it\n", output.Cyan, output.Reset)
+	fmt.Printf("    %sremove%s [--delete] <name>    Remove a registered binary; optionally delete it\n", output.Cyan, output.Reset)
 	fmt.Printf("    %slist%s             List binaries, app versions, and build Go versions\n", output.Cyan, output.Reset)
 	fmt.Printf("    %scheck%s            Check for available updates\n", output.Cyan, output.Reset)
 	fmt.Printf("    %supgrade%s          Upgrade binaries; optionally rebuild with newer Go\n", output.Cyan, output.Reset)

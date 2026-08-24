@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -16,10 +18,10 @@ func TestParseRemoveArgs(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "name only", args: []string{"tool"}, wantName: "tool"},
-		{name: "delete after name", args: []string{"tool", "--delete"}, wantName: "tool", wantDelete: true},
+		{name: "delete after name is rejected", args: []string{"tool", "--delete"}, wantErr: true},
 		{name: "delete before name", args: []string{"--delete", "tool"}, wantName: "tool", wantDelete: true},
 		{name: "missing name", args: nil, wantErr: true},
-		{name: "unknown flag", args: []string{"tool", "--force"}, wantErr: true},
+		{name: "unknown flag", args: []string{"--force", "tool"}, wantErr: true},
 		{name: "multiple names", args: []string{"tool", "other"}, wantErr: true},
 	}
 
@@ -39,6 +41,14 @@ func TestParseRemoveArgs(t *testing.T) {
 				t.Fatalf("parseRemoveArgs(%q) = %+v, want name=%q delete=%t", tc.args, got, tc.wantName, tc.wantDelete)
 			}
 		})
+	}
+}
+
+func TestPrintRemoveHelp(t *testing.T) {
+	var output bytes.Buffer
+	printRemoveHelp(&output)
+	if !strings.Contains(output.String(), "gogitup remove [--delete]") || !strings.Contains(output.String(), "--delete") {
+		t.Fatalf("unexpected help output %q", output.String())
 	}
 }
 
