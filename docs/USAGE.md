@@ -48,16 +48,18 @@ gogitup add <name>
 Installs a Go binary and registers it with **gogitup** in a single step. Existing GitHub `owner/repo` inputs remain supported, and full Go command package paths can also be used.
 
 ```bash
-gogitup install <owner/repo|package-path>
+gogitup install [--private] <owner/repo|package-path>
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `<owner/repo\|package-path>` | Yes | None | GitHub repository or full Go command package path |
+| `--private` | No | `false` | Install from a private GitHub repository and remember it as private for updates |
 
 ```bash
 gogitup install UnitVectorY-Labs/gogitup
 gogitup install golang.org/x/vuln/cmd/govulncheck
+gogitup install --private owner/private-tool
 ```
 
 **What `install` does:**
@@ -66,6 +68,10 @@ gogitup install golang.org/x/vuln/cmd/govulncheck
 2. For a non-GitHub package path, uses `@latest`.
 3. Verifies that the resulting binary (named after the final path component) is available on `PATH`.
 4. Registers the binary with **gogitup** for future `check` and `upgrade` tracking.
+
+With `--private`, **gogitup** resolves a token from `GITHUB_TOKEN` or `gh auth token`, authenticates the GitHub release request, and configures only the child `go install` process for private module and Git access. The repository is stored with `private: true` so later `check` and `upgrade` commands automatically use the same private workflow. The flag currently supports only `github.com` repositories.
+
+The token must have read access to the repository. **gogitup** does not write the token into command arguments, repository URLs, its configuration file, or its output. If no token is available, the command fails before installation with an authentication error.
 
 An optional `@latest` suffix is accepted. Explicit version suffixes are not supported.
 
@@ -130,6 +136,8 @@ gogitup check [--json] [--force]
 3. GitHub Releases for GitHub modules, or the `Update` result from `go list -m -u -json <module>@<installed-version>` for other modules.
 4. The local cache file `~/.gogitup.cache` (version-check results cached for 24 hours).
 
+Tracked applications marked `private: true` use authenticated GitHub release requests. A token must be available from `GITHUB_TOKEN` or `gh auth token`.
+
 {: .important }
 By default, `check` uses a non-expired cache entry to reduce remote lookups. Cached results are tied to the installed version that was checked; changing a binary outside **gogitup** causes a fresh lookup. Use `gogitup check --force` to bypass the cache and refresh the cached value immediately.
 
@@ -152,6 +160,8 @@ gogitup upgrade [--verbose] [--go-version] [--dry-run]
 **What `upgrade` does:**
 
 `upgrade` uses installed binary metadata (`go version -m -json`) and the appropriate version source to find an update, then runs `go install <package>@<version>` when one is available. For non-GitHub modules, the Go toolchain reports an update only when it considers a newer version available; a merely different version does not trigger an install or downgrade. For command packages below a module root, **gogitup** stores the original package path as an optional `install_path` value in `~/.gogitup`. When that value is absent, `upgrade` uses the command package path embedded in the binary, so existing name-only configuration entries remain valid.
+
+For applications installed with `--private`, `upgrade` authenticates both release lookup and the source download and applies private-module settings to the child `go install` process. The stored `private: true` value makes this automatic; `--private` does not need to be passed again.
 
 With `--go-version`, `upgrade` obtains the active toolchain version from `go env GOVERSION` and compares it with the Go version embedded in each installed binary. If the application itself is already current but its build version is older, **gogitup** runs `go install <package>@<installed-version>`. This recompiles and overwrites the binary with the active toolchain; uninstalling it first is not necessary. A normal application-version upgrade also uses the active toolchain, so it does not need a separate rebuild.
 

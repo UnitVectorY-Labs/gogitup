@@ -12,6 +12,7 @@ import (
 type App struct {
 	Name        string `yaml:"name"`
 	InstallPath string `yaml:"install_path,omitempty"`
+	Private     bool   `yaml:"private,omitempty"`
 }
 
 // Config represents the gogitup configuration file.
@@ -66,11 +67,28 @@ func AddApp(cfg *Config, name string) error {
 // AddAppWithInstallPath adds an app with an optional Go package path used for
 // future upgrades. Returns an error if the app already exists.
 func AddAppWithInstallPath(cfg *Config, name, installPath string) error {
+	return AddAppWithInstallOptions(cfg, name, installPath, false)
+}
+
+// AddAppWithInstallOptions adds an app with the values needed for future
+// upgrades. Returns an error if the app already exists.
+func AddAppWithInstallOptions(cfg *Config, name, installPath string, private bool) error {
 	if HasApp(cfg, name) {
 		return errors.New("app already exists: " + name)
 	}
-	cfg.Apps = append(cfg.Apps, App{Name: name, InstallPath: installPath})
+	cfg.Apps = append(cfg.Apps, App{Name: name, InstallPath: installPath, Private: private})
 	return nil
+}
+
+// HasPrivateApps reports whether any tracked application needs authenticated
+// private GitHub access.
+func HasPrivateApps(cfg *Config) bool {
+	for _, app := range cfg.Apps {
+		if app.Private {
+			return true
+		}
+	}
+	return false
 }
 
 // RemoveApp removes an app from the config. Returns an error if the app is not found.

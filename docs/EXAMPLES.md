@@ -30,6 +30,15 @@ Install and register a tool directly from a full Go command package path:
 gogitup install golang.org/x/vuln/cmd/govulncheck
 ```
 
+Install and register a tool from a private GitHub repository:
+
+```bash
+gh auth login
+gogitup install --private owner/private-tool
+```
+
+`GITHUB_TOKEN` may be used instead of GitHub CLI authentication. The private marker is saved with the application, so `gogitup check` and `gogitup upgrade` continue to use authenticated private-repository access automatically.
+
 ## Listing Tracked Tools
 
 View all registered binaries, their installed versions, and the Go versions used to build them:

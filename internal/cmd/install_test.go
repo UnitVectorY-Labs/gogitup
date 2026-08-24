@@ -7,8 +7,35 @@ import (
 	"testing"
 
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
+	"github.com/UnitVectorY-Labs/gogitup/internal/installer"
 	"github.com/UnitVectorY-Labs/gogitup/internal/output"
 )
+
+func TestParseInstallOptionsPrivate(t *testing.T) {
+	opts, err := parseInstallOptions([]string{"--private", "JaredHatfield/hello-go-release"})
+	if err != nil {
+		t.Fatalf("parseInstallOptions returned error: %v", err)
+	}
+	if !opts.Private || opts.Target != "JaredHatfield/hello-go-release" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+}
+
+func TestParseInstallOptionsRequiresOneTarget(t *testing.T) {
+	for _, args := range [][]string{nil, {"one/repo", "two/repo"}} {
+		if _, err := parseInstallOptions(args); err == nil {
+			t.Fatalf("parseInstallOptions(%v) expected error", args)
+		}
+	}
+}
+
+func TestPrintInstallHelp(t *testing.T) {
+	var output bytes.Buffer
+	printInstallHelp(&output)
+	if !strings.Contains(output.String(), "gogitup install [--private]") || !strings.Contains(output.String(), "--private") {
+		t.Fatalf("unexpected help output %q", output.String())
+	}
+}
 
 func TestParseOwnerRepo(t *testing.T) {
 	tests := []struct {
@@ -246,6 +273,47 @@ func TestRunInstallTargetGitHubSubpathUsesRelease(t *testing.T) {
 	}
 	if inst.calls[0].modulePath != "github.com/owner/repo/cmd/tool" || inst.calls[0].version != "v1.2.0" {
 		t.Fatalf("unexpected install call: %+v", inst.calls[0])
+	}
+}
+
+func TestRunInstallTargetPrivatePassesAuthenticationOptions(t *testing.T) {
+	const token = "github-token"
+	ghClient := &stubGitHubClient{
+		releases: map[string]string{"JaredHatfield/hello-go-release": "v0.0.6"},
+	}
+	inst := &stubInstaller{}
+	runner := &stubRunner{infos: map[string]*goversion.Info{
+		"hello-go-release": {
+			Path:    "github.com/JaredHatfield/hello-go-release",
+			Version: "v0.0.6",
+		},
+	}}
+	target, err := parseInstallTarget("JaredHatfield/hello-go-release")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	_, err = runInstallTarget(target, installDependencies{
+		ghClient:    ghClient,
+		installer:   inst,
+		runner:      runner,
+		private:     true,
+		githubToken: token,
+		out:         &output.Writer{Out: &bytes.Buffer{}},
+		errOut:      &output.Writer{Out: &bytes.Buffer{}},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(inst.calls) != 1 {
+		t.Fatalf("expected one private install call, got %+v", inst.calls)
+	}
+	want := installer.InstallOptions{
+		PrivateModule: "github.com/JaredHatfield/hello-go-release",
+		GitHubToken:   token,
+	}
+	if inst.calls[0].options != want {
+		t.Fatalf("install options = %+v, want %+v", inst.calls[0].options, want)
 	}
 }
 
