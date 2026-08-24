@@ -195,14 +195,14 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		if installPath == "" {
 			installPath = info.Path
 		}
-		installerOptions := []installer.InstallOptions(nil)
+		installerOptions := installer.InstallOptions{}
 		if app.Private {
-			installerOptions = append(installerOptions, installer.InstallOptions{
+			installerOptions = installer.InstallOptions{
 				PrivateModule: info.Path,
 				GitHubToken:   deps.githubToken,
-			})
+			}
 		}
-		_, err = deps.installer.Install(installPath, installVersion, installerOptions...)
+		_, err = deps.installer.Install(installPath, installVersion, installerOptions)
 		if err != nil {
 			deps.errOut.Error(fmt.Sprintf("Failed to update '%s': %v", app.Name, err))
 			continue

@@ -12,8 +12,7 @@ import (
 )
 
 func TestParseInstallOptionsPrivate(t *testing.T) {
-	var stderr bytes.Buffer
-	opts, err := parseInstallOptions([]string{"--private", "JaredHatfield/hello-go-release"}, &stderr)
+	opts, err := parseInstallOptions([]string{"--private", "JaredHatfield/hello-go-release"})
 	if err != nil {
 		t.Fatalf("parseInstallOptions returned error: %v", err)
 	}
@@ -24,10 +23,17 @@ func TestParseInstallOptionsPrivate(t *testing.T) {
 
 func TestParseInstallOptionsRequiresOneTarget(t *testing.T) {
 	for _, args := range [][]string{nil, {"one/repo", "two/repo"}} {
-		var stderr bytes.Buffer
-		if _, err := parseInstallOptions(args, &stderr); err == nil {
+		if _, err := parseInstallOptions(args); err == nil {
 			t.Fatalf("parseInstallOptions(%v) expected error", args)
 		}
+	}
+}
+
+func TestPrintInstallHelp(t *testing.T) {
+	var output bytes.Buffer
+	printInstallHelp(&output)
+	if !strings.Contains(output.String(), "gogitup install [--private]") || !strings.Contains(output.String(), "--private") {
+		t.Fatalf("unexpected help output %q", output.String())
 	}
 }
 
@@ -299,15 +305,15 @@ func TestRunInstallTargetPrivatePassesAuthenticationOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(inst.calls) != 1 || len(inst.calls[0].options) != 1 {
+	if len(inst.calls) != 1 {
 		t.Fatalf("expected one private install call, got %+v", inst.calls)
 	}
 	want := installer.InstallOptions{
 		PrivateModule: "github.com/JaredHatfield/hello-go-release",
 		GitHubToken:   token,
 	}
-	if inst.calls[0].options[0] != want {
-		t.Fatalf("install options = %+v, want %+v", inst.calls[0].options[0], want)
+	if inst.calls[0].options != want {
+		t.Fatalf("install options = %+v, want %+v", inst.calls[0].options, want)
 	}
 }
 

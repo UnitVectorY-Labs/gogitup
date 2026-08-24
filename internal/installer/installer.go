@@ -18,7 +18,7 @@ type InstallOptions struct {
 
 // Installer defines the interface for installing Go modules.
 type Installer interface {
-	Install(modulePath string, version string, options ...InstallOptions) (string, error)
+	Install(modulePath string, version string, options InstallOptions) (string, error)
 }
 
 // DefaultInstaller implements Installer using go install.
@@ -98,7 +98,11 @@ func configurePrivateEnv(env []string, goEnv map[string]string, options InstallO
 		return env, nil
 	}
 	if options.GitHubToken == "" {
-		return nil, fmt.Errorf("private GitHub installation requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+		return nil, fmt.Errorf("private GitHub access requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
+	}
+	repositoryRoot, err := githubRepositoryRoot(options.PrivateModule)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, name := range []string{"GOPRIVATE", "GONOPROXY", "GONOSUMDB"} {
@@ -115,7 +119,7 @@ func configurePrivateEnv(env []string, goEnv map[string]string, options InstallO
 	}
 
 	credentials := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + options.GitHubToken))
-	repositoryURL := "https://" + strings.TrimSuffix(options.PrivateModule, "/")
+	repositoryURL := "https://" + repositoryRoot
 	env = setEnv(env, "GIT_CONFIG_COUNT", strconv.Itoa(count+2))
 	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_KEY_%d", count), "http."+repositoryURL+".extraheader")
 	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_VALUE_%d", count), "AUTHORIZATION: basic "+credentials)
@@ -123,6 +127,14 @@ func configurePrivateEnv(env []string, goEnv map[string]string, options InstallO
 	env = setEnv(env, fmt.Sprintf("GIT_CONFIG_VALUE_%d", count+1), "AUTHORIZATION: basic "+credentials)
 	env = setEnv(env, "GIT_TERMINAL_PROMPT", "0")
 	return env, nil
+}
+
+func githubRepositoryRoot(modulePath string) (string, error) {
+	parts := strings.Split(strings.TrimSuffix(modulePath, "/"), "/")
+	if len(parts) < 3 || parts[0] != "github.com" || parts[1] == "" || parts[2] == "" {
+		return "", fmt.Errorf("private module %q is not a valid github.com repository path", modulePath)
+	}
+	return strings.Join(parts[:3], "/"), nil
 }
 
 func appendListValue(current, value string) string {
@@ -168,15 +180,7 @@ func redactToken(value, token string) string {
 }
 
 // Install runs "go install {modulePath}@{version}" and returns the combined output.
-func (d *DefaultInstaller) Install(modulePath string, version string, optionValues ...InstallOptions) (string, error) {
-	if len(optionValues) > 1 {
-		return "", fmt.Errorf("only one set of install options is supported")
-	}
-	options := InstallOptions{}
-	if len(optionValues) == 1 {
-		options = optionValues[0]
-	}
-
+func (d *DefaultInstaller) Install(modulePath string, version string, options InstallOptions) (string, error) {
 	cmd := d.buildInstallCmd(modulePath, version)
 	if options.PrivateModule != "" {
 		goEnv, err := loadPrivateGoEnv()

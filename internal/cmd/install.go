@@ -30,9 +30,9 @@ type installOptions struct {
 	Target  string
 }
 
-func parseInstallOptions(args []string, stderr io.Writer) (installOptions, error) {
+func parseInstallOptions(args []string) (installOptions, error) {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(io.Discard)
 	privateFlag := fs.Bool("private", false, "Install from a private GitHub repository")
 	if err := fs.Parse(args); err != nil {
 		return installOptions{}, err
@@ -43,10 +43,18 @@ func parseInstallOptions(args []string, stderr io.Writer) (installOptions, error
 	return installOptions{Private: *privateFlag, Target: fs.Arg(0)}, nil
 }
 
+func printInstallHelp(w io.Writer) {
+	fmt.Fprintln(w, "Usage: gogitup install [--private] <owner/repo|package-path>")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  --private  Install from a private GitHub repository")
+}
+
 func runInstall(args []string) {
-	opts, err := parseInstallOptions(args, output.ErrorWriter.Out)
+	opts, err := parseInstallOptions(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
+			printInstallHelp(output.DefaultWriter.Out)
 			return
 		}
 		output.Error(err.Error())
@@ -207,14 +215,14 @@ func runInstallTarget(target installTarget, deps installDependencies) (string, e
 
 	deps.out.StartProgress(fmt.Sprintf("Installing %s@%s", target.packagePath, version))
 
-	installerOptions := []installer.InstallOptions(nil)
+	installerOptions := installer.InstallOptions{}
 	if deps.private {
-		installerOptions = append(installerOptions, installer.InstallOptions{
+		installerOptions = installer.InstallOptions{
 			PrivateModule: target.modulePath(),
 			GitHubToken:   deps.githubToken,
-		})
+		}
 	}
-	_, err := deps.installer.Install(target.packagePath, version, installerOptions...)
+	_, err := deps.installer.Install(target.packagePath, version, installerOptions)
 	if err != nil {
 		return "", fmt.Errorf("installation failed: %w", err)
 	}

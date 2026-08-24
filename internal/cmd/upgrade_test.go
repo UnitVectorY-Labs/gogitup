@@ -54,7 +54,7 @@ func (s *stubGitHubClient) GetLatestRelease(owner, repo string) (string, error) 
 type installCall struct {
 	modulePath string
 	version    string
-	options    []installer.InstallOptions
+	options    installer.InstallOptions
 }
 
 type stubInstaller struct {
@@ -86,7 +86,7 @@ func (s *stubModuleResolver) Check(modulePath, installedVersion string) (gomodul
 	return result, nil
 }
 
-func (s *stubInstaller) Install(modulePath, version string, options ...installer.InstallOptions) (string, error) {
+func (s *stubInstaller) Install(modulePath, version string, options installer.InstallOptions) (string, error) {
 	s.calls = append(s.calls, installCall{modulePath: modulePath, version: version, options: options})
 	if s.err != nil {
 		return "", s.err
@@ -352,12 +352,9 @@ func TestRunUpgradeAppsPrivateUsesPrivateInstallOptions(t *testing.T) {
 		t.Fatalf("expected one private upgrade, got updated=%d calls=%+v", updated, installerStub.calls)
 	}
 	call := installerStub.calls[0]
-	if len(call.options) != 1 {
-		t.Fatalf("expected private install options, got %+v", call.options)
-	}
 	want := installer.InstallOptions{PrivateModule: "github.com/acme/tool", GitHubToken: token}
-	if call.options[0] != want {
-		t.Fatalf("install options = %+v, want %+v", call.options[0], want)
+	if call.options != want {
+		t.Fatalf("install options = %+v, want %+v", call.options, want)
 	}
 }
 
