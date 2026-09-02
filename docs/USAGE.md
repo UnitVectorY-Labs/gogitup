@@ -136,6 +136,8 @@ gogitup check [--json] [--force]
 3. GitHub Releases for GitHub modules, or the `Update` result from `go list -m -u -json <module>@<installed-version>` for other modules.
 4. The local cache file `~/.gogitup.cache` (version-check results cached for 24 hours).
 
+The output table includes a **Go Version** column showing the Go toolchain version used to compile each binary (the `go` prefix is omitted). The column is colored the same way as `gogitup list`: **green** when the binary was compiled with the currently active toolchain, and **yellow** when the active toolchain is newer than the version used to build the binary, indicating a rebuild via `gogitup upgrade --go-version` would be beneficial. JSON output includes the fields `go_version` (the unprefixed version string) and `go_version_newer` (a boolean that is `true` when the active toolchain is newer).
+
 Tracked applications marked `private: true` use authenticated GitHub release requests. A token must be available from `GITHUB_TOKEN` or `gh auth token`.
 
 {: .important }

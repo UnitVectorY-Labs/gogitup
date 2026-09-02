@@ -19,6 +19,9 @@ type checkEntry struct {
 	InstalledVersion string `json:"installed_version"`
 	LatestVersion    string `json:"latest_version"`
 	UpdateAvailable  bool   `json:"update_available"`
+	GoVersion        string `json:"go_version"`
+	GoVersionNewer   bool   `json:"go_version_newer"`
+	goVersionRaw     string
 }
 
 func runCheck(args []string) {
@@ -55,10 +58,15 @@ func runCheck(args []string) {
 	ghClient := github.NewDefaultClient(githubToken)
 	moduleResolver := gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY)
 
+	activeGoVersion, err := goversion.CurrentToolchainVersion()
+	if err != nil {
+		activeGoVersion = ""
+	}
+
 	entries := make([]checkEntry, 0, len(cfg.Apps))
 
 	for _, app := range cfg.Apps {
-		entry := checkEntry{Name: app.Name, InstalledVersion: "unknown", LatestVersion: "unknown"}
+		entry := checkEntry{Name: app.Name, InstalledVersion: "unknown", LatestVersion: "unknown", GoVersion: "unknown"}
 
 		info, err := runner.GetInfo(app.Name)
 		if err != nil {
@@ -67,6 +75,16 @@ func runCheck(args []string) {
 			continue
 		}
 		entry.InstalledVersion = info.Version
+		entry.goVersionRaw = info.GoVersion
+		entry.GoVersion = strings.TrimPrefix(info.GoVersion, "go")
+		if info.GoVersion == "" {
+			entry.GoVersion = "unknown"
+		}
+		if activeGoVersion != "" && info.GoVersion != "" {
+			if newer, nerr := goversion.IsToolchainNewer(activeGoVersion, info.GoVersion); nerr == nil {
+				entry.GoVersionNewer = newer
+			}
+		}
 
 		// Cached update decisions are valid only for the installed version checked.
 		cached, found := cache.Get(c, app.Name)
@@ -104,6 +122,8 @@ func runCheck(args []string) {
 	instW := len("Installed")
 	latW := len("Latest")
 	updW := len("Update")
+	const goHeader = "Version"
+	goW := len(goHeader)
 	for _, e := range entries {
 		if len(e.Name) > nameW {
 			nameW = len(e.Name)
@@ -114,16 +134,21 @@ func runCheck(args []string) {
 		if len(e.LatestVersion) > latW {
 			latW = len(e.LatestVersion)
 		}
+		if len(e.GoVersion) > goW {
+			goW = len(e.GoVersion)
+		}
 	}
 
 	output.Header("Update Check")
 	fmt.Println()
-	// Header row
-	fmt.Printf("  %s%s%-*s  %-*s  %-*s  %-*s%s\n", output.Bold, output.Cyan,
-		nameW, "Name", instW, "Installed", latW, "Latest", updW, "Update", output.Reset)
+	// Header rows (two-line style to match list)
+	fmt.Printf("  %s%s%-*s  %-*s  %-*s  %-*s  %-*s%s\n", output.Bold, output.Cyan,
+		nameW, "", instW, "", latW, "", updW, "", goW, "Go", output.Reset)
+	fmt.Printf("  %s%s%-*s  %-*s  %-*s  %-*s  %-*s%s\n", output.Bold, output.Cyan,
+		nameW, "Name", instW, "Installed", latW, "Latest", updW, "Update", goW, goHeader, output.Reset)
 	// Separator
-	fmt.Printf("  %s%s  %s  %s  %s%s\n", output.Gray,
-		strings.Repeat("─", nameW), strings.Repeat("─", instW), strings.Repeat("─", latW), strings.Repeat("─", updW), output.Reset)
+	fmt.Printf("  %s%s  %s  %s  %s  %s%s\n", output.Gray,
+		strings.Repeat("─", nameW), strings.Repeat("─", instW), strings.Repeat("─", latW), strings.Repeat("─", updW), strings.Repeat("─", goW), output.Reset)
 	// Data rows
 	for _, e := range entries {
 		updateStr := "no"
@@ -132,11 +157,23 @@ func runCheck(args []string) {
 			updateStr = "yes"
 			updateColor = output.Yellow
 		}
-		fmt.Printf("  %-*s  %s%-*s%s  %s%-*s%s  %s%-*s%s\n",
+		goColor := checkGoVersionColor(e)
+		fmt.Printf("  %-*s  %s%-*s%s  %s%-*s%s  %s%-*s%s  %s%-*s%s\n",
 			nameW, e.Name,
 			output.Green, instW, e.InstalledVersion, output.Reset,
 			output.Cyan, latW, e.LatestVersion, output.Reset,
-			updateColor, updW, updateStr, output.Reset)
+			updateColor, updW, updateStr, output.Reset,
+			goColor, goW, e.GoVersion, output.Reset)
 	}
 	fmt.Println()
+}
+
+func checkGoVersionColor(e checkEntry) string {
+	if e.goVersionRaw == "" {
+		return output.Gray
+	}
+	if e.GoVersionNewer {
+		return output.Yellow
+	}
+	return output.Green
 }
