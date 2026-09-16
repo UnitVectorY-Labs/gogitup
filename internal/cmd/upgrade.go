@@ -140,7 +140,7 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		info, err := deps.runner.GetInfo(app.Name)
 		if err != nil {
 			failed = true
-			deps.errOut.Warn(fmt.Sprintf("Could not get info for '%s': %v", app.Name, err))
+			deps.errOut.Warn(fmt.Sprintf("Could not get info for %s: %v", appDescription(app), err))
 			continue
 		}
 
