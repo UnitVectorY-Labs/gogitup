@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -86,5 +87,26 @@ func TestCollectListEntriesTreatsEmptyGoVersionAsUnknown(t *testing.T) {
 	entries := collectListEntries([]config.App{{Name: "tool"}}, runner)
 	if entries[0].GoVersion != "unknown" {
 		t.Fatalf("expected unknown Go version, got %#v", entries[0])
+	}
+}
+
+func TestListShowsConfiguredAccount(t *testing.T) {
+	entries := collectListEntries([]config.App{{Name: "tool", GitHubUser: "work"}, {Name: "default"}}, &stubRunner{})
+	if entries[0].GitHubUser != "work" || entries[1].GitHubUser != "" {
+		t.Fatalf("entries=%+v", entries)
+	}
+	var table bytes.Buffer
+	printListTable(&table, entries, "")
+	if !strings.Contains(table.String(), "GitHub User") || !strings.Contains(table.String(), "work") {
+		t.Fatalf("missing account column: %s", &table)
+	}
+	data, err := json.Marshal(entries)
+	if err != nil || !strings.Contains(string(data), `"github_user":"work"`) {
+		t.Fatalf("JSON=%s err=%v", data, err)
+	}
+	table.Reset()
+	printListTable(&table, entries[1:], "")
+	if strings.Contains(table.String(), "GitHub User") {
+		t.Fatal("default-only list must keep existing columns")
 	}
 }

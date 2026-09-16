@@ -46,47 +46,12 @@ func runCheck(args []string) {
 		os.Exit(1)
 	}
 
-	runner := &goversion.DefaultRunner{}
-	githubToken := github.ResolveToken(cfg.GitHubAuth || config.HasPrivateApps(cfg))
-	if config.HasPrivateApps(cfg) && githubToken == "" {
-		output.Error("Checking private GitHub repositories requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
-		os.Exit(1)
-	}
-	ghClient := github.NewDefaultClient(githubToken)
-	moduleResolver := gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY)
-
-	entries := make([]checkEntry, 0, len(cfg.Apps))
-
-	for _, app := range cfg.Apps {
-		entry := checkEntry{Name: app.Name, InstalledVersion: "unknown", LatestVersion: "unknown"}
-
-		info, err := runner.GetInfo(app.Name)
-		if err != nil {
-			output.Warn(fmt.Sprintf("Could not get info for '%s': %v", app.Name, err))
-			entries = append(entries, entry)
-			continue
-		}
-		entry.InstalledVersion = info.Version
-
-		// Cached update decisions are valid only for the installed version checked.
-		cached, found := cache.Get(c, app.Name)
-		if !*forceFlag && found && cached.InstalledVersion == info.Version && !cache.IsExpired(cached, cache.DefaultTTL) {
-			entry.LatestVersion = cached.LatestVersion
-			entry.UpdateAvailable = entry.InstalledVersion != entry.LatestVersion
-		} else {
-			result, err := checkForUpdate(info.Path, info.Version, ghClient, moduleResolver)
-			if err != nil {
-				output.Warn(fmt.Sprintf("Could not fetch latest version for '%s': %v", app.Name, err))
-				entries = append(entries, entry)
-				continue
-			}
-			entry.LatestVersion = result.latestVersion
-			entry.UpdateAvailable = result.updateAvailable
-			cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
-		}
-
-		entries = append(entries, entry)
-	}
+	entries, failed := collectCheckEntries(cfg.Apps, c, *forceFlag, checkDependencies{
+		runner:       &goversion.DefaultRunner{},
+		githubForApp: newAppGitHubResolver(cfg),
+		resolver:     gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
+		errOut:       output.ErrorWriter,
+	})
 
 	// Save updated cache
 	_ = cache.Save(cachePath, c)
@@ -94,6 +59,9 @@ func runCheck(args []string) {
 	if *jsonFlag {
 		if err := output.PrintJSON(entries); err != nil {
 			output.Error(fmt.Sprintf("Failed to output JSON: %v", err))
+			os.Exit(1)
+		}
+		if failed {
 			os.Exit(1)
 		}
 		return
@@ -139,4 +107,64 @@ func runCheck(args []string) {
 			updateColor, updW, updateStr, output.Reset)
 	}
 	fmt.Println()
+	if failed {
+		os.Exit(1)
+	}
+}
+
+type checkDependencies struct {
+	runner       goversion.Runner
+	githubForApp appGitHubResolver
+	resolver     gomodule.Resolver
+	errOut       *output.Writer
+}
+
+func collectCheckEntries(apps []config.App, c *cache.Cache, force bool, deps checkDependencies) ([]checkEntry, bool) {
+	entries := make([]checkEntry, 0, len(apps))
+	failed := false
+	for _, app := range apps {
+		entry := checkEntry{Name: app.Name, InstalledVersion: "unknown", LatestVersion: "unknown"}
+		info, err := deps.runner.GetInfo(app.Name)
+		if err != nil {
+			deps.errOut.Warn(fmt.Sprintf("Could not get info for %s: %v", appDescription(app), err))
+			failed = true
+			entries = append(entries, entry)
+			continue
+		}
+		entry.InstalledVersion = info.Version
+		if err := validateAppGitHub(app, info.Path); err != nil {
+			deps.errOut.Error(fmt.Sprintf("Cannot check %s: %v", appDescription(app), err))
+			failed = true
+			entries = append(entries, entry)
+			continue
+		}
+		cached, found := cache.Get(c, app.Name)
+		if !force && found && cached.Matches(info.Version, app.GitHubUser, app.Private) && !cache.IsExpired(cached, cache.DefaultTTL) {
+			entry.LatestVersion = cached.LatestVersion
+			entry.UpdateAvailable = entry.InstalledVersion != entry.LatestVersion
+		} else {
+			var ghClient github.Client
+			if goversion.IsGitHubRepo(info.Path) {
+				ghClient, _, err = deps.githubForApp(app)
+				if err != nil {
+					deps.errOut.Error(fmt.Sprintf("Cannot authenticate %s: %v", appDescription(app), err))
+					failed = true
+					entries = append(entries, entry)
+					continue
+				}
+			}
+			result, err := checkForUpdate(info.Path, info.Version, ghClient, deps.resolver)
+			if err != nil {
+				deps.errOut.Warn(fmt.Sprintf("Could not fetch latest version for %s: %v", appDescription(app), err))
+				failed = true
+				entries = append(entries, entry)
+				continue
+			}
+			entry.LatestVersion = result.latestVersion
+			entry.UpdateAvailable = result.updateAvailable
+			cache.SetForApp(c, app.Name, info.Version, result.latestVersion, app.GitHubUser, app.Private)
+		}
+		entries = append(entries, entry)
+	}
+	return entries, failed
 }

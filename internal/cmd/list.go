@@ -17,13 +17,14 @@ type listEntry struct {
 	ModulePath       string `json:"module_path"`
 	InstalledVersion string `json:"installed_version"`
 	GoVersion        string `json:"go_version"`
+	GitHubUser       string `json:"github_user,omitempty"`
 	goVersionRaw     string
 }
 
 func collectListEntries(apps []config.App, runner goversion.Runner) []listEntry {
 	entries := make([]listEntry, 0, len(apps))
 	for _, app := range apps {
-		entry := listEntry{Name: app.Name, ModulePath: "unknown", InstalledVersion: "unknown", GoVersion: "unknown"}
+		entry := listEntry{Name: app.Name, ModulePath: "unknown", InstalledVersion: "unknown", GoVersion: "unknown", GitHubUser: app.GitHubUser}
 		info, err := runner.GetInfo(app.Name)
 		if err == nil {
 			entry.ModulePath = info.Path
@@ -79,8 +80,12 @@ func runList(args []string) {
 func printListTable(w io.Writer, entries []listEntry, activeGoVersion string) {
 	// Calculate column widths. The two version headings are stacked to keep the
 	// table compact while preserving alignment with their data columns.
+	userW := 0
 	nameW, pathW, verW, goW := len("Name"), len("Module Path"), len("Installed"), len("Version")
 	for _, e := range entries {
+		if e.GitHubUser != "" {
+			userW = max(userW, len("GitHub User"), len(e.GitHubUser))
+		}
 		if len(e.Name) > nameW {
 			nameW = len(e.Name)
 		}
@@ -97,20 +102,28 @@ func printListTable(w io.Writer, entries []listEntry, activeGoVersion string) {
 
 	fmt.Fprintln(w)
 	// Header rows
-	fmt.Fprintf(w, "  %s%s%-*s  %-*s  %-*s  %-*s%s\n", output.Bold, output.Cyan,
+	fmt.Fprintf(w, "  %s%s%-*s  %-*s  %-*s  %-*s%s", output.Bold, output.Cyan,
 		nameW, "", pathW, "", verW, "Installed", goW, "Go", output.Reset)
-	fmt.Fprintf(w, "  %s%s%-*s  %-*s  %-*s  %-*s%s\n", output.Bold, output.Cyan,
+	printAccountColumn(w, "", userW)
+	fmt.Fprintf(w, "  %s%s%-*s  %-*s  %-*s  %-*s%s", output.Bold, output.Cyan,
 		nameW, "Name", pathW, "Module Path", verW, "Version", goW, "Version", output.Reset)
+	printAccountColumn(w, "GitHub User", userW)
 	// Separator
-	fmt.Fprintf(w, "  %s%s  %s  %s  %s%s\n", output.Gray,
+	fmt.Fprintf(w, "  %s%s  %s  %s  %s%s", output.Gray,
 		strings.Repeat("─", nameW), strings.Repeat("─", pathW), strings.Repeat("─", verW), strings.Repeat("─", goW), output.Reset)
+	printAccountColumn(w, strings.Repeat("─", userW), userW)
 	// Data rows
 	for _, e := range entries {
-		fmt.Fprintf(w, "  %-*s  %s%-*s%s  %s%-*s%s  %s%-*s%s\n",
+		fmt.Fprintf(w, "  %-*s  %s%-*s%s  %s%-*s%s  %s%-*s%s",
 			nameW, e.Name,
 			output.Gray, pathW, e.ModulePath, output.Reset,
 			output.Green, verW, e.InstalledVersion, output.Reset,
 			listGoVersionColor(e, activeGoVersion), goW, e.GoVersion, output.Reset)
+		user := e.GitHubUser
+		if user == "" {
+			user = "-"
+		}
+		printAccountColumn(w, user, userW)
 	}
 	fmt.Fprintln(w)
 }
@@ -126,4 +139,11 @@ func listGoVersionColor(entry listEntry, activeGoVersion string) string {
 		return output.Green
 	}
 	return output.Red
+}
+
+func printAccountColumn(w io.Writer, user string, width int) {
+	if width > 0 {
+		fmt.Fprintf(w, "  %-*s", width, user)
+	}
+	fmt.Fprintln(w)
 }

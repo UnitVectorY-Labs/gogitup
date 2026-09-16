@@ -39,6 +39,32 @@ gogitup install --private owner/private-tool
 
 `GITHUB_TOKEN` may be used instead of GitHub CLI authentication. The private marker is saved with the application, so `gogitup check` and `gogitup upgrade` continue to use authenticated private-repository access automatically.
 
+## Using Different GitHub Accounts
+
+Log in to each account once with `gh auth login --hostname github.com`, then select the account separately from the repository owner:
+
+```bash
+unset GH_TOKEN GITHUB_TOKEN
+gogitup install --private --github-user jared-work acme/internal-tool
+gogitup install --github-user jared-personal someone/public-tool
+gogitup add --github-user jared-work existing-tool
+```
+
+The selected account is saved as `github_user` on each new registration. `check` and `upgrade` use it automatically without switching the active `gh` account. For a private binary registered using `add`, edit its entry to also set `private: true`.
+
+For an already-registered app, edit `~/.gogitup` directly:
+
+```yaml
+apps:
+  - name: internal-tool
+    private: true
+    github_user: jared-work
+  - name: public-tool
+    github_user: jared-personal
+```
+
+Remove `github_user` to return to default authentication. Changing the account triggers a fresh version check; `gogitup check --force` also bypasses the cache. Use `gogitup list` or `gogitup list --json` to inspect configured accounts.
+
 ## Listing Tracked Tools
 
 View all registered binaries, their installed versions, and the Go versions used to build them:

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,8 @@ type Entry struct {
 	LatestVersion    string    `yaml:"latest_version"`
 	InstalledVersion string    `yaml:"installed_version,omitempty"`
 	CheckedAt        time.Time `yaml:"checked_at"`
+	GitHubUser       string    `yaml:"github_user,omitempty"`
+	Private          bool      `yaml:"private,omitempty"`
 }
 
 // Cache represents the gogitup cache file.
@@ -76,11 +79,23 @@ func Set(c *Cache, name string, version string) {
 
 // SetForInstalledVersion caches a version check for a specific installed version.
 func SetForInstalledVersion(c *Cache, name, installedVersion, latestVersion string) {
+	SetForApp(c, name, installedVersion, latestVersion, "", false)
+}
+
+// SetForApp binds a version result to the app's configured account and privacy.
+func SetForApp(c *Cache, name, installedVersion, latestVersion, user string, private bool) {
 	c.Entries[name] = Entry{
 		LatestVersion:    latestVersion,
 		InstalledVersion: installedVersion,
 		CheckedAt:        time.Now(),
+		GitHubUser:       user,
+		Private:          private,
 	}
+}
+
+// Matches reports whether a result applies to the current app configuration.
+func (e Entry) Matches(installedVersion, user string, private bool) bool {
+	return e.InstalledVersion == installedVersion && strings.EqualFold(e.GitHubUser, user) && e.Private == private
 }
 
 // IsExpired checks if a cache entry is older than the given TTL.

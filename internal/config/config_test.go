@@ -262,3 +262,32 @@ func TestHasApp(t *testing.T) {
 		t.Fatal("expected HasApp to return false for app2")
 	}
 }
+
+func TestRegisterAccountRoundTrip(t *testing.T) {
+	cfg := &Config{}
+	want := App{Name: "tool", InstallPath: "github.com/acme/tool/cmd/tool", Private: true, GitHubUser: "work"}
+	if err := RegisterApp(cfg, want); err != nil {
+		t.Fatal(err)
+	}
+	if err := RegisterApp(cfg, App{Name: "tool", GitHubUser: "personal"}); err == nil {
+		t.Fatal("duplicate registration must not replace account")
+	}
+	path := filepath.Join(t.TempDir(), "config")
+	if err := Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil || len(got.Apps) != 1 || got.Apps[0] != want {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+}
+
+func TestLoadRejectsMalformedAccount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(path, []byte("apps:\n  - name: tool\n    github_user: ' work '\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected invalid account error")
+	}
+}

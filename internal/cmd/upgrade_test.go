@@ -8,6 +8,7 @@ import (
 
 	"github.com/UnitVectorY-Labs/gogitup/internal/cache"
 	"github.com/UnitVectorY-Labs/gogitup/internal/config"
+	"github.com/UnitVectorY-Labs/gogitup/internal/github"
 	"github.com/UnitVectorY-Labs/gogitup/internal/gomodule"
 	"github.com/UnitVectorY-Labs/gogitup/internal/goversion"
 	"github.com/UnitVectorY-Labs/gogitup/internal/installer"
@@ -153,12 +154,12 @@ func TestRunUpgradeAppsSuppressesUpToDateEntriesByDefault(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  ghClient,
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &stderr},
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(ghClient, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
 	})
 
 	if updated != 1 {
@@ -224,12 +225,12 @@ func TestRunUpgradeAppsVerboseIncludesUpToDateEntries(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{Verbose: true}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  ghClient,
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &stderr},
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{Verbose: true}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(ghClient, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
 	})
 
 	if updated != 1 {
@@ -267,13 +268,13 @@ func TestRunUpgradeAppsUsesPackagePathForNonGitHubModule(t *testing.T) {
 	installer := &stubInstaller{}
 	var stdout, stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  &stubGitHubClient{},
-		resolver:  resolver,
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &stderr},
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(&stubGitHubClient{}, ""),
+		resolver:     resolver,
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
 	})
 
 	if updated != 1 {
@@ -308,13 +309,13 @@ func TestRunUpgradeAppsUsesEmbeddedPackagePathWhenConfigPathIsMissing(t *testing
 	}
 	installer := &stubInstaller{}
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  &stubGitHubClient{},
-		resolver:  resolver,
-		installer: installer,
-		out:       &output.Writer{Out: &bytes.Buffer{}},
-		errOut:    &output.Writer{Out: &bytes.Buffer{}},
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(&stubGitHubClient{}, ""),
+		resolver:     resolver,
+		installer:    installer,
+		out:          &output.Writer{Out: &bytes.Buffer{}},
+		errOut:       &output.Writer{Out: &bytes.Buffer{}},
 	})
 
 	if updated != 1 {
@@ -334,18 +335,17 @@ func TestRunUpgradeAppsPrivateUsesPrivateInstallOptions(t *testing.T) {
 	c := &cache.Cache{Entries: map[string]cache.Entry{}}
 	installerStub := &stubInstaller{}
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
 		runner: &stubRunner{infos: map[string]*goversion.Info{
 			"tool": {
 				Path:    "github.com/acme/tool",
 				Version: "v1.0.0",
 			},
 		}},
-		ghClient:    &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.1.0"}},
-		installer:   installerStub,
-		githubToken: token,
-		out:         &output.Writer{Out: &bytes.Buffer{}},
-		errOut:      &output.Writer{Out: &bytes.Buffer{}},
+		githubForApp: fixedAppGitHub(&stubGitHubClient{releases: map[string]string{"acme/tool": "v1.1.0"}}, token),
+		installer:    installerStub,
+		out:          &output.Writer{Out: &bytes.Buffer{}},
+		errOut:       &output.Writer{Out: &bytes.Buffer{}},
 	})
 
 	if updated != 1 || len(installerStub.calls) != 1 {
@@ -379,13 +379,13 @@ func TestRunUpgradeAppsDoesNotDowngradeNonGitHubModule(t *testing.T) {
 	}
 	installer := &stubInstaller{}
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  &stubGitHubClient{},
-		resolver:  resolver,
-		installer: installer,
-		out:       &output.Writer{Out: &bytes.Buffer{}},
-		errOut:    &output.Writer{Out: &bytes.Buffer{}},
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(&stubGitHubClient{}, ""),
+		resolver:     resolver,
+		installer:    installer,
+		out:          &output.Writer{Out: &bytes.Buffer{}},
+		errOut:       &output.Writer{Out: &bytes.Buffer{}},
 	})
 
 	if updated != 0 {
@@ -413,13 +413,13 @@ func TestRunUpgradeAppsRebuildsCurrentVersionWithNewerGo(t *testing.T) {
 	installer := &stubInstaller{}
 	var stdout, stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
-		runner:    runner,
-		ghClient:  &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}},
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &stderr},
-		currentGo: func() (string, error) { return "go1.25.7", nil },
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
+		runner:       runner,
+		githubForApp: fixedAppGitHub(&stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}}, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
+		currentGo:    func() (string, error) { return "go1.25.7", nil },
 	})
 
 	if updated != 1 {
@@ -441,15 +441,15 @@ func TestRunUpgradeAppsDoesNotRebuildWithoutNewerGo(t *testing.T) {
 	c := &cache.Cache{Entries: map[string]cache.Entry{}}
 	installer := &stubInstaller{}
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
 		runner: &stubRunner{infos: map[string]*goversion.Info{
 			"tool": {Path: "github.com/acme/tool", Version: "v1.2.3", GoVersion: "go1.25.7"},
 		}},
-		ghClient:  &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}},
-		installer: installer,
-		out:       &output.Writer{Out: &bytes.Buffer{}},
-		errOut:    &output.Writer{Out: &bytes.Buffer{}},
-		currentGo: func() (string, error) { return "go1.25.7", nil },
+		githubForApp: fixedAppGitHub(&stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}}, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &bytes.Buffer{}},
+		errOut:       &output.Writer{Out: &bytes.Buffer{}},
+		currentGo:    func() (string, error) { return "go1.25.7", nil },
 	})
 
 	if updated != 0 || len(installer.calls) != 0 {
@@ -461,17 +461,17 @@ func TestRunUpgradeAppsCanRebuildWhenUpdateCheckFails(t *testing.T) {
 	cfg := &config.Config{Apps: []config.App{{Name: "tool"}}}
 	c := &cache.Cache{Entries: map[string]cache.Entry{}}
 	installer := &stubInstaller{}
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{RebuildWithNewerGo: true}, upgradeDependencies{
 		runner: &stubRunner{infos: map[string]*goversion.Info{
 			"tool": {Path: "github.com/acme/tool", Version: "v1.2.3", GoVersion: "go1.25.6"},
 		}},
-		ghClient:  &stubGitHubClient{errs: map[string]error{"acme/tool": errors.New("offline")}},
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &bytes.Buffer{}},
-		currentGo: func() (string, error) { return "go1.25.7", nil },
+		githubForApp: fixedAppGitHub(&stubGitHubClient{errs: map[string]error{"acme/tool": errors.New("offline")}}, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
+		currentGo:    func() (string, error) { return "go1.25.7", nil },
 	})
 
 	if updated != 1 || len(installer.calls) != 1 || installer.calls[0].version != "v1.2.3" {
@@ -480,8 +480,8 @@ func TestRunUpgradeAppsCanRebuildWhenUpdateCheckFails(t *testing.T) {
 	if _, ok := cache.Get(c, "tool"); ok {
 		t.Fatal("expected failed update lookup not to be cached")
 	}
-	if !strings.Contains(stdout.String(), "Could not fetch latest version") {
-		t.Fatalf("expected update-check warning, got %q", stdout.String())
+	if !strings.Contains(stderr.String(), "Could not fetch latest version") {
+		t.Fatalf("expected update-check warning, got %q", stderr.String())
 	}
 }
 
@@ -491,14 +491,14 @@ func TestRunUpgradeAppsDryRunListsUpgradeWithoutInstallingOrCaching(t *testing.T
 	installer := &stubInstaller{err: errors.New("installer must not be called")}
 	var stdout, stderr bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{DryRun: true}, upgradeDependencies{
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{DryRun: true}, upgradeDependencies{
 		runner: &stubRunner{infos: map[string]*goversion.Info{
 			"tool": {Path: "github.com/acme/tool", Version: "v1.2.3"},
 		}},
-		ghClient:  &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.3.0"}},
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &stderr},
+		githubForApp: fixedAppGitHub(&stubGitHubClient{releases: map[string]string{"acme/tool": "v1.3.0"}}, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &stderr},
 	})
 
 	if updated != 1 {
@@ -524,15 +524,15 @@ func TestRunUpgradeAppsDryRunListsGoVersionRebuildWithoutInstalling(t *testing.T
 	installer := &stubInstaller{err: errors.New("installer must not be called")}
 	var stdout bytes.Buffer
 
-	updated := runUpgradeApps(cfg, c, upgradeOptions{DryRun: true, RebuildWithNewerGo: true}, upgradeDependencies{
+	updated, _ := runUpgradeApps(cfg, c, upgradeOptions{DryRun: true, RebuildWithNewerGo: true}, upgradeDependencies{
 		runner: &stubRunner{infos: map[string]*goversion.Info{
 			"tool": {Path: "github.com/acme/tool", Version: "v1.2.3", GoVersion: "go1.25.6"},
 		}},
-		ghClient:  &stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}},
-		installer: installer,
-		out:       &output.Writer{Out: &stdout},
-		errOut:    &output.Writer{Out: &bytes.Buffer{}},
-		currentGo: func() (string, error) { return "go1.25.7", nil },
+		githubForApp: fixedAppGitHub(&stubGitHubClient{releases: map[string]string{"acme/tool": "v1.2.3"}}, ""),
+		installer:    installer,
+		out:          &output.Writer{Out: &stdout},
+		errOut:       &output.Writer{Out: &bytes.Buffer{}},
+		currentGo:    func() (string, error) { return "go1.25.7", nil },
 	})
 
 	if updated != 1 || len(installer.calls) != 0 {
@@ -540,5 +540,91 @@ func TestRunUpgradeAppsDryRunListsGoVersionRebuildWithoutInstalling(t *testing.T
 	}
 	if !strings.Contains(stdout.String(), "Would rebuild 'tool'") || !strings.Contains(stdout.String(), "go1.25.7 (currently go1.25.6)") {
 		t.Fatalf("expected planned rebuild output, got %q", stdout.String())
+	}
+}
+
+func fixedAppGitHub(client github.Client, token string) appGitHubResolver {
+	return func(config.App) (github.Client, string, error) { return client, token, nil }
+}
+
+func TestUpgradeMixedAccounts(t *testing.T) {
+	apps := []config.App{
+		{Name: "first", Private: true, GitHubUser: "work"},
+		{Name: "second", Private: true, GitHubUser: "personal"},
+		{Name: "public", GitHubUser: "work"},
+		{Name: "default"},
+	}
+	infos := map[string]*goversion.Info{}
+	for _, app := range apps {
+		infos[app.Name] = &goversion.Info{Path: "github.com/other-owner/" + app.Name, Version: "v1.0.0"}
+	}
+	var seen []string
+	inst := &stubInstaller{}
+	c := &cache.Cache{Entries: map[string]cache.Entry{}}
+	updated, failed := runUpgradeApps(&config.Config{Apps: apps}, c, upgradeOptions{}, upgradeDependencies{
+		runner: &stubRunner{infos: infos},
+		githubForApp: func(app config.App) (github.Client, string, error) {
+			seen = append(seen, app.GitHubUser)
+			return &stubGitHubClient{releases: map[string]string{"other-owner/" + app.Name: "v2.0.0"}}, app.GitHubUser + "-token", nil
+		},
+		installer: inst,
+		out:       &output.Writer{Out: &bytes.Buffer{}}, errOut: &output.Writer{Out: &bytes.Buffer{}},
+	})
+	if failed || updated != 4 || len(inst.calls) != 4 || strings.Join(seen, ",") != "work,personal,work," {
+		t.Fatalf("updated=%d failed=%v calls=%+v seen=%v", updated, failed, inst.calls, seen)
+	}
+	for i, app := range apps {
+		want := installer.InstallOptions{}
+		if app.Private {
+			want = installer.InstallOptions{PrivateModule: infos[app.Name].Path, GitHubToken: app.GitHubUser + "-token"}
+		}
+		if inst.calls[i].options != want {
+			t.Fatalf("app %s: options=%+v want=%+v", app.Name, inst.calls[i].options, want)
+		}
+		if !c.Entries[app.Name].Matches("v1.0.0", app.GitHubUser, app.Private) {
+			t.Fatalf("app %s cache lost account", app.Name)
+		}
+	}
+}
+
+func TestUpgradeAccountFailurePreventsRebuildAndContinues(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		for _, lookupFailure := range []bool{false, true} {
+			var stdout, stderr bytes.Buffer
+			c := &cache.Cache{Entries: map[string]cache.Entry{}}
+			inst := &stubInstaller{}
+			updated, failed := runUpgradeApps(&config.Config{Apps: []config.App{{Name: "broken", GitHubUser: "work", Private: true}, {Name: "good"}}}, c, upgradeOptions{RebuildWithNewerGo: true, DryRun: dryRun}, upgradeDependencies{
+				runner: &stubRunner{infos: map[string]*goversion.Info{
+					"broken": {Path: "github.com/acme/broken", Version: "v1.0.0", GoVersion: "go1.25.6"},
+					"good":   {Path: "github.com/acme/good", Version: "v1.0.0", GoVersion: "go1.25.6"},
+				}},
+				githubForApp: func(app config.App) (github.Client, string, error) {
+					if app.GitHubUser == "work" {
+						if !lookupFailure {
+							return nil, "", errors.New("missing stored account")
+						}
+						return &stubGitHubClient{errs: map[string]error{"acme/broken": errors.New("GitHub API returned status 403")}}, "work-token", nil
+					}
+					return &stubGitHubClient{releases: map[string]string{"acme/good": "v2.0.0"}}, "", nil
+				},
+				installer: inst, currentGo: func() (string, error) { return "go1.25.7", nil },
+				out: &output.Writer{Out: &stdout}, errOut: &output.Writer{Out: &stderr},
+			})
+			if !failed || updated != 1 {
+				t.Fatalf("dry=%v lookup=%v updated=%d failed=%v", dryRun, lookupFailure, updated, failed)
+			}
+			if dryRun && len(inst.calls) != 0 {
+				t.Fatal("dry run installed something")
+			}
+			if !dryRun && (len(inst.calls) != 1 || inst.calls[0].modulePath != "github.com/acme/good") {
+				t.Fatalf("failed account reached installer: %+v", inst.calls)
+			}
+			if _, ok := c.Entries["broken"]; ok {
+				t.Fatal("failed account cached")
+			}
+			if !strings.Contains(stderr.String(), `"broken" (GitHub account "work")`) {
+				t.Fatalf("missing account context: %s", &stderr)
+			}
+		}
 	}
 }
