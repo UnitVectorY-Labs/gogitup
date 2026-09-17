@@ -45,9 +45,9 @@ Log in to each account once with `gh auth login --hostname github.com`, then sel
 
 ```bash
 unset GH_TOKEN GITHUB_TOKEN
-gogitup install --private --github-user jared-work acme/internal-tool
-gogitup install --github-user jared-personal someone/public-tool
-gogitup add --github-user jared-work existing-tool
+gogitup install --private --github-user user_example_work acme/internal-tool
+gogitup install --github-user user_example_personal someone/public-tool
+gogitup add --github-user user_example_work existing-tool
 ```
 
 The selected account is saved as `github_user` on each new registration. `check` and `upgrade` use it automatically without switching the active `gh` account. For a private binary registered using `add`, edit its entry to also set `private: true`.
@@ -58,9 +58,9 @@ For an already-registered app, edit `~/.gogitup` directly:
 apps:
   - name: internal-tool
     private: true
-    github_user: jared-work
+    github_user: user_example_work
   - name: public-tool
-    github_user: jared-personal
+    github_user: user_example_personal
 ```
 
 Remove `github_user` to return to default authentication. Changing the account triggers a fresh version check; `gogitup check --force` also bypasses the cache. Use `gogitup list` or `gogitup list --json` to inspect configured accounts.

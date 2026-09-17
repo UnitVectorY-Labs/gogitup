@@ -28,7 +28,7 @@ apps:
   - name: bulkfilepr
   - name: private-tool
     private: true
-    github_user: jared-work
+    github_user: user_example_work
 github_auth: false
 goproxy: "https://proxy.golang.org"
 ```
@@ -67,9 +67,9 @@ Set `apps[].github_user` to select an account already logged in through GitHub C
 apps:
   - name: internal-tool
     private: true
-    github_user: jared-work
+    github_user: user_example_work
   - name: public-tool
-    github_user: jared-personal
+    github_user: user_example_personal
   - name: govulncheck
     install_path: golang.org/x/vuln/cmd/govulncheck
 github_auth: false
