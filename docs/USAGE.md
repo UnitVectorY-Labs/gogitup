@@ -30,16 +30,17 @@ permalink: /usage
 Registers a binary for tracking with **gogitup**. The binary must already be installed via `go install`.
 
 ```bash
-gogitup add <name>
+gogitup add [--github-user USER] <name>
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `<name>` | Yes | None | Binary name of the tool to track, must be available on `PATH` (for example `ghorgsync`) |
+| `--github-user USER` | No | None | Remember a stored GitHub CLI account for this app's future GitHub requests |
 
 **What `add` does:**
 
-`add` inspects the installed binary with `go version -m -json` to confirm it was installed with Go tooling and to extract its module and command package paths.
+`add` inspects the installed binary with `go version -m -json` to confirm it was installed with Go tooling and to extract its module and command package paths. `--github-user` supports `github.com` modules and saves the account without checking its credentials. For an already-installed private app, also set `private: true` in its configuration entry. Existing registrations are not overwritten; edit `~/.gogitup` to change their settings.
 
 ---
 
@@ -48,13 +49,14 @@ gogitup add <name>
 Installs a Go binary and registers it with **gogitup** in a single step. Existing GitHub `owner/repo` inputs remain supported, and full Go command package paths can also be used.
 
 ```bash
-gogitup install [--private] <owner/repo|package-path>
+gogitup install [--private] [--github-user USER] <owner/repo|package-path>
 ```
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `<owner/repo\|package-path>` | Yes | None | GitHub repository or full Go command package path |
 | `--private` | No | `false` | Install from a private GitHub repository and remember it as private for updates |
+| `--github-user USER` | No | None | Use and remember a stored GitHub CLI account for this app |
 
 ```bash
 gogitup install UnitVectorY-Labs/gogitup
@@ -69,13 +71,15 @@ gogitup install --private owner/private-tool
 3. Verifies that the resulting binary (named after the final path component) is available on `PATH`.
 4. Registers the binary with **gogitup** for future `check` and `upgrade` tracking.
 
-With `--private`, **gogitup** resolves a token from `GITHUB_TOKEN` or `gh auth token`, authenticates the GitHub release request, and configures only the child `go install` process for private module and Git access. The repository is stored with `private: true` so later `check` and `upgrade` commands automatically use the same private workflow. The flag currently supports only `github.com` repositories.
+With `--private`, **gogitup** resolves a token from the selected account, or from `GITHUB_TOKEN` or `gh auth token` when no account is selected, authenticates the GitHub release request, and configures only the child `go install` process for private module and Git access. The repository is stored with `private: true` so later `check` and `upgrade` commands automatically use the same private workflow. The flag currently supports only `github.com` repositories.
+
+With `--github-user USER`, **gogitup** uses `gh auth token --hostname github.com --user USER` for GitHub release requests and, with `--private`, HTTPS source downloads. The account is independent of the repository owner and enables authenticated requests even when `github_auth` is false. Both options support only `github.com` targets. Put flags before the positional argument, as with the other commands. See [per-app accounts](CONFIG.md#per-app-github-accounts) for login requirements and environment-token conflicts.
 
 The token must have read access to the repository. **gogitup** does not write the token into command arguments, repository URLs, its configuration file, or its output. If no token is available, the command fails before installation with an authentication error.
 
 An optional `@latest` suffix is accepted. Explicit version suffixes are not supported.
 
-If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually.
+If the installed binary name differs from the repository name (uncommon), the installation itself still succeeds but the binary will not be registered automatically. Use `gogitup add <name>` to register it manually, including `--github-user USER` when needed and setting `private: true` in the saved entry for private apps.
 
 ---
 
@@ -110,7 +114,7 @@ gogitup list [--json]
 
 **What `list` does:**
 
-`list` reads the tracked app names from `~/.gogitup` and inspects each installed binary with `go version -m -json` to report its module path, installed application version, and embedded Go build version. The displayed Go version omits the `go` prefix. It is green when it matches the active locally installed toolchain reported by `go env GOVERSION`, and red when it differs. This comparison is against the installed toolchain, not the newest Go release available online. JSON output includes the unprefixed Go version as `go_version`.
+`list` reads the tracked app names from `~/.gogitup` and inspects each installed binary with `go version -m -json` to report its module path, installed application version, and embedded Go build version. The displayed Go version omits the `go` prefix. It is green when it matches the active locally installed toolchain reported by `go env GOVERSION`, and red when it differs. This comparison is against the installed toolchain, not the newest Go release available online. JSON output includes the unprefixed Go version as `go_version`. When any app has an explicit account, the table also shows a `GitHub User` column (`-` means default account selection). JSON includes `github_user` for apps with an explicit account. Listing does not access GitHub or resolve credentials.
 
 ---
 
@@ -136,10 +140,10 @@ gogitup check [--json] [--force]
 3. GitHub Releases for GitHub modules, or the `Update` result from `go list -m -u -json <module>@<installed-version>` for other modules.
 4. The local cache file `~/.gogitup.cache` (version-check results cached for 24 hours).
 
-Tracked applications marked `private: true` use authenticated GitHub release requests. A token must be available from `GITHUB_TOKEN` or `gh auth token`.
+Tracked applications marked `private: true` use authenticated GitHub release requests. On a fresh lookup, a token must be available from the selected `github_user`, or from `GITHUB_TOKEN` or `gh auth token` when no account is selected. Each app uses its own credentials.
 
 {: .important }
-By default, `check` uses a non-expired cache entry to reduce remote lookups. Cached results are tied to the installed version that was checked; changing a binary outside **gogitup** causes a fresh lookup. Use `gogitup check --force` to bypass the cache and refresh the cached value immediately.
+By default, `check` uses a non-expired cache entry to reduce remote lookups. Cached results are tied to the installed version that was checked; changing a binary outside **gogitup** causes a fresh lookup. Changing the configured account or privacy setting also invalidates the cached result. Valid cache hits do not look up credentials. Use `gogitup check --force` to bypass the cache and refresh the cached value immediately.
 
 ---
 
@@ -161,7 +165,7 @@ gogitup upgrade [--verbose] [--go-version] [--dry-run]
 
 `upgrade` uses installed binary metadata (`go version -m -json`) and the appropriate version source to find an update, then runs `go install <package>@<version>` when one is available. For non-GitHub modules, the Go toolchain reports an update only when it considers a newer version available; a merely different version does not trigger an install or downgrade. For command packages below a module root, **gogitup** stores the original package path as an optional `install_path` value in `~/.gogitup`. When that value is absent, `upgrade` uses the command package path embedded in the binary, so existing name-only configuration entries remain valid.
 
-For applications installed with `--private`, `upgrade` authenticates both release lookup and the source download and applies private-module settings to the child `go install` process. The stored `private: true` value makes this automatic; `--private` does not need to be passed again.
+For applications installed with `--private`, `upgrade` authenticates both release lookup and the source download and applies private-module settings to the child `go install` process. The stored `private: true` value makes this automatic; `--private` does not need to be passed again. A saved `github_user` selects that app's credentials for both operations, without changing the active GitHub CLI account.
 
 With `--go-version`, `upgrade` obtains the active toolchain version from `go env GOVERSION` and compares it with the Go version embedded in each installed binary. If the application itself is already current but its build version is older, **gogitup** runs `go install <package>@<installed-version>`. This recompiles and overwrites the binary with the active toolchain; uninstalling it first is not necessary. A normal application-version upgrade also uses the active toolchain, so it does not need a separate rebuild.
 
@@ -169,3 +173,9 @@ With `--go-version`, `upgrade` obtains the active toolchain version from `go env
 This check is opt-in. Without `--go-version`, `upgrade` only installs newer application versions, preserving its existing behavior.
 
 With `--dry-run`, `upgrade` performs the same version checks and lists each application upgrade or Go-version rebuild it would perform, but does not run `go install` or update the cache. Combine it with `--go-version` to preview toolchain rebuilds as well as application upgrades.
+
+## Errors and Exit Status
+
+`check` and `upgrade` report failed app operations on stderr, continue with other apps, and exit with status `1` if any app could not be processed. `check --json` still writes its result array to stdout; an app whose lookup failed has `latest_version: "unknown"`. Do not interpret its `update_available: false` as a successful check. Invalid command-line arguments use status `2`.
+
+For a private app or an app with `github_user`, failed credential resolution or a failed release lookup prevents installation, including a fallback Go-version rebuild. `upgrade --dry-run` performs the same credential and release checks but does not install or modify the cache.

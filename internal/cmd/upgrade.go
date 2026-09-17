@@ -23,14 +23,13 @@ type upgradeOptions struct {
 }
 
 type upgradeDependencies struct {
-	runner      goversion.Runner
-	ghClient    github.Client
-	resolver    gomodule.Resolver
-	installer   installer.Installer
-	githubToken string
-	out         *output.Writer
-	errOut      *output.Writer
-	currentGo   func() (string, error)
+	runner       goversion.Runner
+	githubForApp appGitHubResolver
+	resolver     gomodule.Resolver
+	installer    installer.Installer
+	out          *output.Writer
+	errOut       *output.Writer
+	currentGo    func() (string, error)
 }
 
 type updateResult struct {
@@ -81,24 +80,18 @@ func runUpgrade(args []string) {
 	}
 
 	runner := &goversion.DefaultRunner{}
-	githubToken := github.ResolveToken(cfg.GitHubAuth || config.HasPrivateApps(cfg))
-	if config.HasPrivateApps(cfg) && githubToken == "" {
-		output.Error("Upgrading private GitHub repositories requires authentication; set GITHUB_TOKEN or run 'gh auth login'")
-		os.Exit(1)
-	}
-	ghClient := github.NewDefaultClient(githubToken)
+
 	inst := installer.NewDefaultInstallerWithOptions(cfg.GOPROXY, cfg.CGOEnabled)
 	deps := upgradeDependencies{
-		runner:      runner,
-		ghClient:    ghClient,
-		resolver:    gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
-		installer:   inst,
-		githubToken: githubToken,
-		out:         output.DefaultWriter,
-		errOut:      output.ErrorWriter,
-		currentGo:   goversion.CurrentToolchainVersion,
+		runner:       runner,
+		githubForApp: newAppGitHubResolver(cfg),
+		resolver:     gomodule.NewDefaultResolverWithGOPROXY(cfg.GOPROXY),
+		installer:    inst,
+		out:          output.DefaultWriter,
+		errOut:       output.ErrorWriter,
+		currentGo:    goversion.CurrentToolchainVersion,
 	}
-	updated := runUpgradeApps(cfg, c, opts, deps)
+	updated, failed := runUpgradeApps(cfg, c, opts, deps)
 
 	if !opts.DryRun {
 		// Save updated cache only when performing the requested updates.
@@ -106,6 +99,14 @@ func runUpgrade(args []string) {
 	}
 
 	fmt.Println()
+	if failed {
+		action := "updated"
+		if opts.DryRun {
+			action = "would be updated"
+		}
+		deps.errOut.Error(fmt.Sprintf("Completed with errors; %d binary(ies) %s.", updated, action))
+		os.Exit(1)
+	}
 	if opts.DryRun {
 		if updated == 0 {
 			deps.out.Info("Dry run: no binaries would be updated.")
@@ -121,8 +122,7 @@ func runUpgrade(args []string) {
 	}
 }
 
-func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, deps upgradeDependencies) int {
-	updated := 0
+func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, deps upgradeDependencies) (updated int, failed bool) {
 	activeGoVersion := ""
 	if opts.RebuildWithNewerGo {
 		if deps.currentGo == nil {
@@ -139,8 +139,25 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 	for _, app := range cfg.Apps {
 		info, err := deps.runner.GetInfo(app.Name)
 		if err != nil {
-			deps.out.Warn(fmt.Sprintf("Could not get info for '%s': %v", app.Name, err))
+			failed = true
+			deps.errOut.Warn(fmt.Sprintf("Could not get info for %s: %v", appDescription(app), err))
 			continue
+		}
+
+		if err := validateAppGitHub(app, info.Path); err != nil {
+			deps.errOut.Error(fmt.Sprintf("Cannot update %s: %v", appDescription(app), err))
+			failed = true
+			continue
+		}
+		var ghClient github.Client
+		var githubToken string
+		if goversion.IsGitHubRepo(info.Path) {
+			ghClient, githubToken, err = deps.githubForApp(app)
+			if err != nil {
+				deps.errOut.Error(fmt.Sprintf("Cannot authenticate %s: %v", appDescription(app), err))
+				failed = true
+				continue
+			}
 		}
 
 		rebuild := false
@@ -152,15 +169,16 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		}
 
 		// Always perform a fresh update check (ignore cache).
-		result, err := checkForUpdate(info.Path, info.Version, deps.ghClient, deps.resolver)
+		result, err := checkForUpdate(info.Path, info.Version, ghClient, deps.resolver)
 		if err != nil {
-			deps.out.Warn(fmt.Sprintf("Could not fetch latest version for '%s': %v", app.Name, err))
-			if !rebuild {
+			deps.errOut.Warn(fmt.Sprintf("Could not fetch latest version for %s: %v", appDescription(app), err))
+			if !rebuild || app.GitHubUser != "" || app.Private {
+				failed = true
 				continue
 			}
 			result = updateResult{latestVersion: info.Version}
 		} else if !opts.DryRun {
-			cache.SetForInstalledVersion(c, app.Name, info.Version, result.latestVersion)
+			cache.SetForApp(c, app.Name, info.Version, result.latestVersion, app.GitHubUser, app.Private)
 		}
 
 		if !result.updateAvailable && !rebuild {
@@ -199,12 +217,13 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		if app.Private {
 			installerOptions = installer.InstallOptions{
 				PrivateModule: info.Path,
-				GitHubToken:   deps.githubToken,
+				GitHubToken:   githubToken,
 			}
 		}
 		_, err = deps.installer.Install(installPath, installVersion, installerOptions)
 		if err != nil {
-			deps.errOut.Error(fmt.Sprintf("Failed to update '%s': %v", app.Name, err))
+			failed = true
+			deps.errOut.Error(fmt.Sprintf("Failed to update %s: %v", appDescription(app), err))
 			continue
 		}
 
@@ -216,7 +235,7 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		updated++
 	}
 
-	return updated
+	return updated, failed
 }
 
 func checkForUpdate(modulePath, installedVersion string, ghClient github.Client, resolver gomodule.Resolver) (updateResult, error) {

@@ -46,6 +46,10 @@ cd gogitup
 go build -o gogitup
 ```
 
+## Optional GitHub Account Selection
+
+Per-app `github_user` requires a GitHub CLI version supporting `gh auth token --hostname github.com --user USER`. Log in to each account with `gh auth login --hostname github.com` before using it. Unset `GH_TOKEN` and `GITHUB_TOKEN` for operations using an explicit account. See [per-app GitHub accounts](CONFIG.md#per-app-github-accounts) for configuration and examples.
+
 ## Upgrading with gogitup
 
 ### Registering with gogitup
