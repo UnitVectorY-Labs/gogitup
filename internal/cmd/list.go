@@ -23,7 +23,7 @@ type listEntry struct {
 
 func collectListEntries(apps []config.App, runner goversion.Runner) []listEntry {
 	entries := make([]listEntry, 0, len(apps))
-	for _, app := range apps {
+	for _, app := range sortedApps(apps) {
 		entry := listEntry{Name: app.Name, ModulePath: "unknown", InstalledVersion: "unknown", GoVersion: "unknown", GitHubUser: app.GitHubUser}
 		info, err := runner.GetInfo(app.Name)
 		if err == nil {

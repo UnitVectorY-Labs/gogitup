@@ -24,14 +24,14 @@ func TestCollectListEntriesIncludesGoVersion(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
-	if entries[0].GoVersion != "1.25.7" {
-		t.Fatalf("expected embedded Go version, got %#v", entries[0])
+	if entries[1].GoVersion != "1.25.7" {
+		t.Fatalf("expected embedded Go version, got %#v", entries[1])
 	}
-	if entries[0].goVersionRaw != "go1.25.7" {
-		t.Fatalf("expected raw embedded Go version, got %#v", entries[0])
+	if entries[1].goVersionRaw != "go1.25.7" {
+		t.Fatalf("expected raw embedded Go version, got %#v", entries[1])
 	}
-	if entries[1].GoVersion != "unknown" {
-		t.Fatalf("expected unknown Go version, got %#v", entries[1])
+	if entries[0].GoVersion != "unknown" {
+		t.Fatalf("expected unknown Go version, got %#v", entries[0])
 	}
 }
 
@@ -92,7 +92,7 @@ func TestCollectListEntriesTreatsEmptyGoVersionAsUnknown(t *testing.T) {
 
 func TestListShowsConfiguredAccount(t *testing.T) {
 	entries := collectListEntries([]config.App{{Name: "tool", GitHubUser: "work"}, {Name: "default"}}, &stubRunner{})
-	if entries[0].GitHubUser != "work" || entries[1].GitHubUser != "" {
+	if entries[1].GitHubUser != "work" || entries[0].GitHubUser != "" {
 		t.Fatalf("entries=%+v", entries)
 	}
 	var table bytes.Buffer
@@ -105,7 +105,7 @@ func TestListShowsConfiguredAccount(t *testing.T) {
 		t.Fatalf("JSON=%s err=%v", data, err)
 	}
 	table.Reset()
-	printListTable(&table, entries[1:], "")
+	printListTable(&table, entries[:1], "")
 	if strings.Contains(table.String(), "GitHub User") {
 		t.Fatal("default-only list must keep existing columns")
 	}

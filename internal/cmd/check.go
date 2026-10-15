@@ -122,7 +122,7 @@ type checkDependencies struct {
 func collectCheckEntries(apps []config.App, c *cache.Cache, force bool, deps checkDependencies) ([]checkEntry, bool) {
 	entries := make([]checkEntry, 0, len(apps))
 	failed := false
-	for _, app := range apps {
+	for _, app := range sortedApps(apps) {
 		entry := checkEntry{Name: app.Name, InstalledVersion: "unknown", LatestVersion: "unknown"}
 		info, err := deps.runner.GetInfo(app.Name)
 		if err != nil {

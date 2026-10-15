@@ -570,10 +570,10 @@ func TestUpgradeMixedAccounts(t *testing.T) {
 		installer: inst,
 		out:       &output.Writer{Out: &bytes.Buffer{}}, errOut: &output.Writer{Out: &bytes.Buffer{}},
 	})
-	if failed || updated != 4 || len(inst.calls) != 4 || strings.Join(seen, ",") != "work,personal,work," {
+	if failed || updated != 4 || len(inst.calls) != 4 || strings.Join(seen, ",") != ",work,work,personal" {
 		t.Fatalf("updated=%d failed=%v calls=%+v seen=%v", updated, failed, inst.calls, seen)
 	}
-	for i, app := range apps {
+	for i, app := range []config.App{apps[3], apps[0], apps[2], apps[1]} {
 		want := installer.InstallOptions{}
 		if app.Private {
 			want = installer.InstallOptions{PrivateModule: infos[app.Name].Path, GitHubToken: app.GitHubUser + "-token"}

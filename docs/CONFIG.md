@@ -20,6 +20,8 @@ permalink: /config
 
 The configuration file is located at `~/.gogitup` and uses YAML format. It is created automatically the first time you register a binary.
 
+The order of `apps` does not affect command output or processing: `list`, `check`, and `upgrade` process binaries alphabetically by name, ignoring case, with a case-sensitive tie-breaker. Saving configuration preserves the existing app order; new registrations are appended. You do not need to sort the file manually.
+
 ### Example
 
 ```yaml
