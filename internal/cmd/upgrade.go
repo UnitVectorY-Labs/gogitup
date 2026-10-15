@@ -136,7 +136,7 @@ func runUpgradeApps(cfg *config.Config, c *cache.Cache, opts upgradeOptions, dep
 		}
 	}
 
-	for _, app := range cfg.Apps {
+	for _, app := range sortedApps(cfg.Apps) {
 		info, err := deps.runner.GetInfo(app.Name)
 		if err != nil {
 			failed = true

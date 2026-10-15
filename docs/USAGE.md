@@ -16,6 +16,8 @@ permalink: /usage
 
 ---
 
+Commands that process all registered binaries (`list`, `check`, and `upgrade`) use alphabetical order by binary name, ignoring case. Names that differ only in case use case-sensitive order as a tie-breaker (uppercase before lowercase). This order applies to table rows, JSON arrays, per-app diagnostics, version checks, upgrades, rebuilds, and dry runs, regardless of configuration order. `add`, `install`, and `remove` each operate on one explicitly named binary.
+
 **Global Flags**
 
 | Flag | Description |
