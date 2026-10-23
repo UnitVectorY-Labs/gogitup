@@ -1,6 +1,7 @@
 name: gogitup
 default_branch: main
 config:
+  osv: sarif
   description: "Stop manually checking versions. Keep the tools you installed with go install updated with a single command."
   license: MIT
   language: go
