@@ -1,7 +1,7 @@
 package github
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -62,7 +62,7 @@ func (c *DefaultClient) GetLatestRelease(owner, repo string) (string, error) {
 	}
 
 	var release releaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &release); err != nil {
 		return "", fmt.Errorf("failed to parse release response: %w", err)
 	}
 

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"testing"
 
@@ -89,7 +89,7 @@ func TestCheckContinuesAfterAccountFailure(t *testing.T) {
 	if err := (&output.Writer{Out: &stdout}).PrintJSON(entries); err != nil {
 		t.Fatal(err)
 	}
-	if !json.Valid(stdout.Bytes()) {
+	if !jsontext.Value(stdout.Bytes()).IsValid() {
 		t.Fatalf("invalid JSON: %s", &stdout)
 	}
 }

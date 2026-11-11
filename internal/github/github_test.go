@@ -1,7 +1,7 @@
 package github
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +16,7 @@ func TestGetLatestRelease_Success(t *testing.T) {
 			t.Errorf("unexpected Accept header: %s", r.Header.Get("Accept"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(releaseResponse{TagName: "v1.2.3"})
+		json.MarshalWrite(w, releaseResponse{TagName: "v1.2.3"})
 	}))
 	defer server.Close()
 
@@ -34,7 +34,7 @@ func TestGetLatestRelease_Success(t *testing.T) {
 	defer resp.Body.Close()
 
 	var release releaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &release); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	if release.TagName != "v1.2.3" {
@@ -49,7 +49,7 @@ func TestGetLatestRelease_RequestURL(t *testing.T) {
 		capturedPath = r.URL.Path
 		capturedAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(releaseResponse{TagName: "v0.1.0"})
+		json.MarshalWrite(w, releaseResponse{TagName: "v0.1.0"})
 	}))
 	defer server.Close()
 
@@ -116,7 +116,7 @@ func TestGetLatestRelease_InvalidJSON(t *testing.T) {
 	defer resp.Body.Close()
 
 	var release releaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&release); err == nil {
+	if err := json.UnmarshalRead(resp.Body, &release); err == nil {
 		t.Fatal("expected JSON decode error, got nil")
 	}
 }
