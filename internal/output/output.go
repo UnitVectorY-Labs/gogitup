@@ -1,7 +1,8 @@
 package output
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -57,7 +58,7 @@ func (w *Writer) Header(msg string) {
 
 // PrintJSON marshals v as indented JSON and writes it to the writer.
 func (w *Writer) PrintJSON(v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := json.Marshal(v, jsontext.WithIndent("  "))
 	if err != nil {
 		return fmt.Errorf("marshaling JSON: %w", err)
 	}

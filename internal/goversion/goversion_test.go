@@ -230,3 +230,25 @@ func TestIsToolchainNewerRejectsInvalidVersions(t *testing.T) {
 		t.Fatal("expected invalid embedded version error")
 	}
 }
+
+func TestParseVersionJSONStrictAndStreamed(t *testing.T) {
+	valid := `{"Path":"example.com/cmd","Main":{"Path":"example.com/mod","Version":"v1.0.0"}}`
+	tests := []struct {
+		name, input string
+		wantError   bool
+	}{
+		{"stream", valid + "\n" + valid, false},
+		{"duplicate name", `{"Main":{"Path":"example.com/mod","Version":"v1.0.0","Version":"v2.0.0"}}`, true},
+		{"invalid UTF-8", "{\"Main\":{\"Path\":\"\xff\",\"Version\":\"v1.0.0\"}}", true},
+		{"case sensitive", `{"main":{"Path":"example.com/mod","Version":"v1.0.0"}}`, true},
+		{"invalid second value", valid + ` {`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseVersionJSON([]byte(tt.input))
+			if (err != nil) != tt.wantError {
+				t.Fatalf("error = %v, want error %v", err, tt.wantError)
+			}
+		})
+	}
+}

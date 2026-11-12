@@ -2,7 +2,8 @@ package goversion
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	goversion "go/version"
@@ -118,11 +119,11 @@ func parseVersionEntries(data []byte) ([]versionOutput, error) {
 		}
 		return entries, nil
 	case '{':
-		dec := json.NewDecoder(bytes.NewReader(trimmed))
+		dec := jsontext.NewDecoder(bytes.NewReader(trimmed))
 		var entries []versionOutput
 		for {
 			var entry versionOutput
-			err := dec.Decode(&entry)
+			err := json.UnmarshalDecode(dec, &entry)
 			if err == nil {
 				entries = append(entries, entry)
 				continue
