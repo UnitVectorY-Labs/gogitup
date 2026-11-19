@@ -18,6 +18,8 @@ permalink: /usage
 
 Commands that process all registered binaries (`list`, `check`, and `upgrade`) use alphabetical order by binary name, ignoring case. Names that differ only in case use case-sensitive order as a tie-breaker (uppercase before lowercase). This order applies to table rows, JSON arrays, per-app diagnostics, version checks, upgrades, rebuilds, and dry runs, regardless of configuration order. `add`, `install`, and `remove` each operate on one explicitly named binary.
 
+When inspecting a binary by name, **gogitup** searches `PATH` in order but skips entries that refer to the current working directory (including `.` and directory symlinks). This prevents a local development build from hiding the installed executable when running from a source checkout. The installed executable's directory must be on `PATH`; a copy found only in the current directory is not used for metadata inspection.
+
 **Global Flags**
 
 | Flag | Description |

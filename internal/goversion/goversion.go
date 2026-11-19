@@ -8,7 +8,9 @@ import (
 	"fmt"
 	goversion "go/version"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -67,7 +69,7 @@ type versionOutput struct {
 
 // GetInfo runs go version -m -json against the named binary and returns its Info.
 func (d *DefaultRunner) GetInfo(binaryName string) (*Info, error) {
-	binaryPath, err := exec.LookPath(binaryName)
+	binaryPath, err := lookInstalledPath(binaryName)
 	if err != nil {
 		return nil, errors.New("binary not found: " + binaryName)
 	}
@@ -79,6 +81,38 @@ func (d *DefaultRunner) GetInfo(binaryName string) (*Info, error) {
 	}
 
 	return ParseVersionJSON(output)
+}
+
+// lookInstalledPath follows PATH order while excluding the working directory,
+// where a development build can shadow the installed application.
+func lookInstalledPath(name string) (string, error) {
+	if filepath.Base(name) != name {
+		return exec.LookPath(name)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	cwdInfo, err := os.Stat(cwd)
+	if err != nil {
+		return "", err
+	}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {
+			continue
+		}
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if info, err := os.Stat(absDir); err == nil && os.SameFile(cwdInfo, info) {
+			continue
+		}
+		if path, err := exec.LookPath(filepath.Join(absDir, name)); err == nil {
+			return path, nil
+		}
+	}
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
 
 // ParseVersionJSON parses the JSON output from go version -m -json into Info.
