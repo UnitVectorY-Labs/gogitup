@@ -2,8 +2,74 @@ package goversion
 
 import (
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
+
+func TestLookInstalledPath(t *testing.T) {
+	root := t.TempDir()
+	cwd := filepath.Join(root, "source")
+	installed := filepath.Join(root, "bin")
+	other := filepath.Join(root, "other")
+	name := "testapp"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	for _, dir := range []string{cwd, installed, other} {
+		if err := os.Mkdir(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("fixture"), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(cwd)
+	tests := []struct {
+		name string
+		path []string
+		want string
+	}{
+		{"ordinary PATH", []string{installed}, filepath.Join(installed, name)},
+		{"dot shadows installed", []string{".", installed}, filepath.Join(installed, name)},
+		{"empty entry", []string{"", installed}, filepath.Join(installed, name)},
+		{"absolute cwd shadows installed", []string{cwd, installed}, filepath.Join(installed, name)},
+		{"relative cwd shadows installed", []string{"../source", installed}, filepath.Join(installed, name)},
+		{"relative installation directory", []string{".", "../bin"}, filepath.Join(installed, name)},
+		{"preserve PATH order", []string{cwd, other, installed}, filepath.Join(other, name)},
+		{"only local build", []string{cwd, "."}, ""},
+		{"missing PATH directory", []string{filepath.Join(root, "missing"), installed}, filepath.Join(installed, name)},
+	}
+	if runtime.GOOS != "windows" {
+		alias := filepath.Join(root, "alias")
+		if err := os.Symlink(cwd, alias); err != nil {
+			t.Fatal(err)
+		}
+		tests = append(tests, struct {
+			name string
+			path []string
+			want string
+		}{"symlink to cwd", []string{alias, installed}, filepath.Join(installed, name)})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("PATH", strings.Join(tt.path, string(os.PathListSeparator)))
+			got, err := lookInstalledPath(name)
+			if got != tt.want {
+				t.Fatalf("path = %q, want %q (error: %v)", got, tt.want, err)
+			}
+			if tt.want == "" && !errors.Is(err, exec.ErrNotFound) {
+				t.Fatalf("error = %v, want executable not found", err)
+			}
+			if tt.want != "" && err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 
 func TestIsGitHubRepo(t *testing.T) {
 	if !IsGitHubRepo("github.com/owner/repo") {
